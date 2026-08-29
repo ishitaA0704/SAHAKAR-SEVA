@@ -105,20 +105,11 @@ def get_user_transactions(fingerprint_id):
         FROM Transactions
         WHERE fingerprint_id = ?
     """, (fingerprint_id,))
-    rows = cursor.fetchall()
-    
+    transactions = cursor.fetchall()
     return [
-        {"scheme_name": row[0], "status": row[1]} 
-        for row in rows
+        {
+            "scheme_name": transaction[0],
+            "status": transaction[1]
+        }
+        for transaction in transactions
     ]
-
-profile = get_user_profile(14)
-print("User Profile:", profile)
-
-scheme_info = get_scheme_info("PM-KISAN")
-print("Scheme Info:", scheme_info)
-
-user_txs = get_user_transactions(14)
-print("User Transactions:", user_txs)
-
-connection.close()
