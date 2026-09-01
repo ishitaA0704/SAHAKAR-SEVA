@@ -27,7 +27,8 @@ CREATE TABLE IF NOT EXISTS Transactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     fingerprint_id INTEGER NOT NULL,
     scheme_name TEXT NOT NULL,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    UNIQUE(fingerprint_id, scheme_name)
 )
 """)
 
