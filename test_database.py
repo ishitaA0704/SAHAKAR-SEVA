@@ -1,5 +1,9 @@
-from database import get_user_profile, get_scheme_info, get_user_transactions
+from database import (
+    get_user_profile, get_schemes_for_occupation,
+    get_jurisdiction, create_guest_profile
+)
 
-print("User Profile:", get_user_profile(14))
-print("Scheme Info:", get_scheme_info("PM-KISAN"))
-print("User Transactions:", get_user_transactions(14))
+print("Farmer profile:", get_user_profile(14))
+print("Farmer schemes:", get_schemes_for_occupation("Farmer"))
+print("Jurisdiction:", get_jurisdiction("Krishnarajpet", "Farmer"))
+print("Guest profile:", create_guest_profile("Artisan", "Maddur"))
