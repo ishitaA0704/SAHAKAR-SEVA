@@ -1,7 +1,7 @@
 import sqlite3
 import time
 
-connection = sqlite3.connect("pacs_local.db")
+connection = sqlite3.connect("pacs_local.db", check_same_thread=False)
 cursor = connection.cursor()
 
 cursor.execute("""
