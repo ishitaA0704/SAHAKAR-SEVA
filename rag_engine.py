@@ -35,8 +35,7 @@ Respond strictly in JSON with no other text:
 """
 
     response = requests.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-        params={"key": api_key},
+"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",        params={"key": api_key},
         json={"contents": [{"parts": [{"text": prompt}]}]},
         timeout=15
     )

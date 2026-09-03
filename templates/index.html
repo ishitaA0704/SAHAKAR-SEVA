@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sahakar Seva</title>
+</head>
+<body>
+    <h1>Sahakar Seva Terminal</h1>
+    <button onclick="authenticate()">Simulate Fingerprint (ID 14)</button>
+    <p id="result"></p>
+
+    <script>
+        async function authenticate() {
+            const res = await fetch("/authenticate", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({fingerprint_id: 14})
+            });
+            const data = await res.json();
+            document.getElementById("result").innerText = JSON.stringify(data, null, 2);
+        }
+    </script>
+</body>
+</html>
