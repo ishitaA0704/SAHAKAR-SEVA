@@ -1,11 +1,13 @@
 from flask import Flask, render_template, request, jsonify
-from app import GEMINI_KEY
-from app import GEMINI_KEY
 from context_builder import build_context
-from rag_engine import get_ai_answer
+from rag_engine import get_ai_answer, get_session_summary
+import os
+import json
 
-
+conversations = {}  # {fingerprint_id: [{"query": ..., "answer": ...}, ...]}
 app = Flask(__name__)
+
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 @app.route("/")
 def index():
@@ -23,8 +25,6 @@ def authenticate():
         "status": "ok",
         "user": context["user"]
     })
-
-import json
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -44,7 +44,33 @@ def ask():
     except json.JSONDecodeError:
         parsed_answer = {"answer": raw_answer, "next_steps": "", "reference": ""}
 
+    conversations.setdefault(fingerprint_id, []).append({
+        "query": query,
+        "answer": parsed_answer.get("answer", "")
+    })
+
     return jsonify({"status": "ok", **parsed_answer})
+
+@app.route("/finish", methods=["POST"])
+def finish():
+    data = request.json
+    fingerprint_id = int(data["fingerprint_id"])
+
+    context = build_context(fingerprint_id, document_text="", query_text="")
+    if context is None:
+        return jsonify({"status": "not_registered"})
+
+    history = conversations.get(fingerprint_id, [])
+    raw_summary = get_session_summary(context, history, GEMINI_KEY)
+
+    try:
+        parsed_summary = json.loads(raw_summary)
+    except json.JSONDecodeError:
+        parsed_summary = {"main_issue": raw_summary}
+
+    conversations.pop(fingerprint_id, None)
+
+    return jsonify({"status": "ok", "summary": parsed_summary})
 
 if __name__ == "__main__":
     app.run(debug=True)
