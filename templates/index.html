@@ -5,8 +5,16 @@
 </head>
 <body>
     <h1>Sahakar Seva Terminal</h1>
+
     <button onclick="authenticate()">Simulate Fingerprint (ID 14)</button>
-    <p id="result"></p>
+    <p id="authResult"></p>
+
+    <hr>
+
+    <input type="text" id="queryBox" placeholder="Type your question" size="50">
+    <button onclick="ask()">Ask</button>
+
+    <div id="answerBox" style="margin-top: 15px; white-space: pre-wrap;"></div>
 
     <script>
         async function authenticate() {
@@ -16,7 +24,33 @@
                 body: JSON.stringify({fingerprint_id: 14})
             });
             const data = await res.json();
-            document.getElementById("result").innerText = JSON.stringify(data, null, 2);
+            document.getElementById("authResult").innerText = JSON.stringify(data, null, 2);
+        }
+
+        async function ask() {
+            const query = document.getElementById("queryBox").value;
+            document.getElementById("answerBox").innerText = "Thinking...";
+
+            const res = await fetch("/ask", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    fingerprint_id: 14,
+                    query: query,
+                    document_text: "LOAN APPLICATION REJECTED DUE TO MISSING LAND DOCUMENT"
+                })
+            });
+            const data = await res.json();
+
+            if (data.status === "not_registered") {
+                document.getElementById("answerBox").innerText = "Not registered. Please visit your nearest office to register.";
+                return;
+            }
+
+            document.getElementById("answerBox").innerText =
+                "Answer: " + data.answer +
+                "\n\nNext steps: " + data.next_steps +
+                "\n\nReference: " + data.reference;
         }
     </script>
 </body>
