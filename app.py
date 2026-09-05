@@ -1,17 +1,29 @@
 from flask import Flask, render_template, request, jsonify, send_file
 from context_builder import build_context
-from rag_engine import get_ai_answer
+from rag_engine import get_ai_answer, get_session_summary
 from pdf_printer import generate_and_print
 import os
 import json
 
 app = Flask(__name__)
 
+conversations = {}  # {fingerprint_id: [{"query": ..., "answer": ...}, ...]}
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+
+
+def clean_json_response(raw_text):
+    text = raw_text.strip()
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    return text.strip()
+
 
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 @app.route("/authenticate", methods=["POST"])
 def authenticate():
@@ -25,6 +37,7 @@ def authenticate():
         "status": "ok",
         "user": context["user"]
     })
+
 
 @app.route("/ask", methods=["POST"])
 def ask():
@@ -40,11 +53,39 @@ def ask():
     raw_answer = get_ai_answer(context, GEMINI_KEY)
 
     try:
-        parsed_answer = json.loads(raw_answer)
+        parsed_answer = json.loads(clean_json_response(raw_answer))
     except json.JSONDecodeError:
         parsed_answer = {"answer": raw_answer, "next_steps": "", "reference": ""}
 
+    conversations.setdefault(fingerprint_id, []).append({
+        "query": query,
+        "answer": parsed_answer.get("answer", "")
+    })
+
     return jsonify({"status": "ok", **parsed_answer})
+
+
+@app.route("/finish", methods=["POST"])
+def finish():
+    data = request.json
+    fingerprint_id = int(data["fingerprint_id"])
+
+    context = build_context(fingerprint_id, document_text="", query_text="")
+    if context is None:
+        return jsonify({"status": "not_registered"})
+
+    history = conversations.get(fingerprint_id, [])
+    raw_summary = get_session_summary(context, history, GEMINI_KEY)
+
+    try:
+        parsed_summary = json.loads(clean_json_response(raw_summary))
+    except json.JSONDecodeError:
+        parsed_summary = {"main_issue": raw_summary}
+
+    conversations.pop(fingerprint_id, None)
+
+    return jsonify({"status": "ok", "summary": parsed_summary})
+
 
 @app.route("/print_summary", methods=["POST"])
 def print_summary():
@@ -58,7 +99,6 @@ def print_summary():
     fingerprint_id = int(data.get("fingerprint_id", 0))
     summary = data.get("summary", {})
 
-    # Rebuild context for user + jurisdiction info (no query needed)
     context = build_context(fingerprint_id, document_text="", query_text="")
     if context is None:
         return jsonify({"status": "error", "message": "User not found — cannot generate PDF."}), 400

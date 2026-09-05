@@ -20,6 +20,14 @@ def load_knowledge_for_occupation(occupation):
 def get_ai_answer(context, api_key):
     knowledge = load_knowledge_for_occupation(context["user"]["occupation"])
 
+    if not knowledge.strip():
+        fallback = {
+            "answer": "I don't have verified scheme information for this category yet. Please contact your local cooperative office directly for accurate guidance.",
+            "next_steps": "Visit your nearest PACS/cooperative office for scheme information.",
+            "reference": "No grounding documents available for this occupation"
+        }
+        return json.dumps(fallback)
+
     prompt = f"""You are a cooperative assistant helping a rural {context['user']['occupation']}.
 
 User profile: {context['user']}
@@ -37,7 +45,7 @@ Respond strictly in JSON with no other text:
 
     try:
         response = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
             params={"key": api_key},
             json={"contents": [{"parts": [{"text": prompt}]}]},
             timeout=30
@@ -57,6 +65,18 @@ Respond strictly in JSON with no other text:
 
 
 def get_session_summary(context, conversation_history, api_key):
+    knowledge = load_knowledge_for_occupation(context["user"]["occupation"])
+
+    if not knowledge.strip():
+        fallback = {
+            "main_issue": "No verified scheme information available for this category.",
+            "questions_discussed": [turn["query"] for turn in conversation_history],
+            "recommended_next_steps": "Please visit your nearest cooperative office for accurate guidance.",
+            "required_documents": [],
+            "reference": "No grounding documents available for this occupation"
+        }
+        return json.dumps(fallback)
+
     history_text = "\n".join(
         f"Q: {turn['query']}\nA: {turn['answer']}" for turn in conversation_history
     )
@@ -82,7 +102,7 @@ Do not add information that wasn't established in the conversation.
 
     try:
         response = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
             params={"key": api_key},
             json={"contents": [{"parts": [{"text": prompt}]}]},
             timeout=30
