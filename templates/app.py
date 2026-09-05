@@ -1,12 +1,12 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 from context_builder import build_context
 from rag_engine import get_ai_answer, get_session_summary
+from pdf_printer import generate_and_print
 import os
 import json
 
 conversations = {}  # {fingerprint_id: [{"query": ..., "answer": ...}, ...]}
 app = Flask(__name__)
-
 GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
 
 @app.route("/")
@@ -16,11 +16,9 @@ def index():
 @app.route("/authenticate", methods=["POST"])
 def authenticate():
     fingerprint_id = int(request.json.get("fingerprint_id", 14))
-
     context = build_context(fingerprint_id, document_text="", query_text="")
     if context is None:
         return jsonify({"status": "not_registered"})
-
     return jsonify({
         "status": "ok",
         "user": context["user"]
@@ -32,13 +30,10 @@ def ask():
     fingerprint_id = int(data["fingerprint_id"])
     query = data["query"]
     document_text = data.get("document_text", "")
-
     context = build_context(fingerprint_id, document_text, query)
     if context is None:
         return jsonify({"status": "not_registered"})
-
     raw_answer = get_ai_answer(context, GEMINI_KEY)
-
     try:
         parsed_answer = json.loads(raw_answer)
     except json.JSONDecodeError:
@@ -71,6 +66,23 @@ def finish():
     conversations.pop(fingerprint_id, None)
 
     return jsonify({"status": "ok", "summary": parsed_summary})
+
+@app.route("/print_summary", methods=["POST"])
+def print_summary():
+    """
+    Receives the session summary + fingerprint_id, generates an A4 PDF,
+    and silently prints it to the default Windows printer via pywin32.
+    Body: { fingerprint_id, summary: {...} }
+    Returns: { status: 'printed'|'print_error'|'error', message, pdf_path? }
+    """
+    data = request.json
+    fingerprint_id = int(data.get("fingerprint_id", 0))
+    summary = data.get("summary", {})
+    context = build_context(fingerprint_id, document_text="", query_text="")
+    if context is None:
+        return jsonify({"status": "error", "message": "User not found — cannot generate PDF."}), 400
+    result = generate_and_print(summary, context["user"], context["jurisdiction"])
+    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(debug=True)
