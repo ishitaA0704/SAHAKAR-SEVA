@@ -1,57 +1,1301 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Sahakar Seva</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sahakar Seva Terminal | ಸಹಕಾರ ಸೇವಾ ಕೇಂದ್ರ</title>
+  <meta name="description" content="Multilingual cooperative assistance terminal for rural farmers, artisans, and landless labourers in Karnataka." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── RESET & ROOT ────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-900: #0d2b1e;
+      --green-800: #1a4731;
+      --green-700: #2d6a4f;
+      --green-600: #40916c;
+      --green-400: #74c69d;
+      --green-200: #b7e4c7;
+      --green-100: #d8f3dc;
+      --amber:     #f5a623;
+      --amber-dim: #c47d0a;
+      --cream:     #faf7f0;
+      --cream-dim: #f0ebe0;
+      --white:     #ffffff;
+      --text-dark: #1c1c1e;
+      --text-mid:  #4a5568;
+      --text-muted:#6b7280;
+      --red:       #dc2626;
+      --red-bg:    #fef2f2;
+
+      --radius-sm: 10px;
+      --radius-md: 18px;
+      --radius-lg: 28px;
+
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.10);
+      --shadow-md: 0 8px 32px rgba(0,0,0,0.18);
+      --shadow-lg: 0 20px 60px rgba(0,0,0,0.28);
+
+      --font-main: 'Noto Sans', 'Noto Sans Kannada', sans-serif;
+    }
+
+    html, body {
+      height: 100%;
+      width: 100%;
+      font-family: var(--font-main);
+      background: var(--green-900);
+      color: var(--text-dark);
+      overflow: hidden;
+    }
+
+    /* ─── SCREEN MANAGER ─────────────────────────────────────────────────── */
+    .screen {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.45s ease, transform 0.45s ease;
+      transform: translateY(18px);
+    }
+    .screen.active {
+      opacity: 1;
+      pointer-events: all;
+      transform: translateY(0);
+    }
+
+    /* ─── GLOBAL BACKGROUND PATTERN ─────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(45,106,79,0.55) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 90% 110%, rgba(26,71,49,0.4) 0%, transparent 60%),
+        linear-gradient(160deg, var(--green-900) 0%, #0a1f14 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .screen { z-index: 1; }
+
+    /* ─── TOP HEADER BAR (shared) ────────────────────────────────────────── */
+    .top-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 64px;
+      background: rgba(13,43,30,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(116,198,157,0.18);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      z-index: 100;
+    }
+    .top-bar .logo-mark {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .top-bar .logo-icon {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, var(--green-600), var(--green-400));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .top-bar .logo-text {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--white);
+      line-height: 1.2;
+    }
+    .top-bar .logo-text span {
+      display: block;
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--green-400);
+      letter-spacing: 0.04em;
+    }
+    .top-bar .system-time {
+      font-size: 13px;
+      color: var(--green-400);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── SCREEN 1: IDLE ─────────────────────────────────────────────────── */
+    #screen-idle {
+      gap: 0;
+      padding-top: 64px;
+    }
+    .idle-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      max-width: 820px;
+      width: 100%;
+      padding: 32px 24px;
+    }
+
+    .fingerprint-ring {
+      position: relative;
+      width: 160px; height: 160px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .fingerprint-ring::before,
+    .fingerprint-ring::after {
+      content: '';
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid var(--green-600);
+      animation: ripple 3s ease-out infinite;
+    }
+    .fingerprint-ring::before { width: 100%; height: 100%; animation-delay: 0s; }
+    .fingerprint-ring::after  { width: 130%; height: 130%; animation-delay: 1s; opacity: 0.5; }
+
+    @keyframes ripple {
+      0%   { transform: scale(0.85); opacity: 0.8; }
+      50%  { transform: scale(1.05); opacity: 0.4; }
+      100% { transform: scale(0.85); opacity: 0.8; }
+    }
+
+    .fingerprint-svg-wrap {
+      width: 110px; height: 110px;
+      background: linear-gradient(135deg, var(--green-700), var(--green-600));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 40px rgba(64,145,108,0.45), var(--shadow-md);
+      animation: fp-glow 3s ease-in-out infinite;
+    }
+    @keyframes fp-glow {
+      0%, 100% { box-shadow: 0 0 30px rgba(64,145,108,0.35), var(--shadow-md); }
+      50%       { box-shadow: 0 0 60px rgba(64,145,108,0.65), var(--shadow-lg); }
+    }
+    .fingerprint-svg-wrap svg { width: 60px; height: 60px; }
+
+    .idle-title {
+      text-align: center;
+      line-height: 1.2;
+    }
+    .idle-title h1 {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.01em;
+    }
+    .idle-title .kannada {
+      font-size: 20px;
+      color: var(--green-400);
+      font-weight: 600;
+      margin-top: 4px;
+    }
+    .idle-title .subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-top: 8px;
+      font-weight: 400;
+    }
+
+    /* Error banner */
+    .error-banner {
+      display: none;
+      background: var(--red-bg);
+      border: 1.5px solid var(--red);
+      border-radius: var(--radius-md);
+      padding: 16px 22px;
+      text-align: center;
+      max-width: 580px;
+      animation: shake 0.4s ease;
+    }
+    .error-banner.visible { display: block; }
+    .error-banner .err-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--red);
+    }
+    .error-banner .err-body {
+      font-size: 13px;
+      color: #991b1b;
+      margin-top: 4px;
+      line-height: 1.5;
+    }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-8px); }
+      40%      { transform: translateX(8px); }
+      60%      { transform: translateX(-5px); }
+      80%      { transform: translateX(5px); }
+    }
+
+    /* Demo persona grid */
+    .demo-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+    .persona-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      width: 100%;
+      max-width: 680px;
+    }
+    .persona-btn {
+      background: rgba(255,255,255,0.05);
+      border: 1.5px solid rgba(116,198,157,0.22);
+      border-radius: var(--radius-md);
+      padding: 14px 10px;
+      cursor: pointer;
+      transition: all 0.22s ease;
+      text-align: center;
+      backdrop-filter: blur(6px);
+      min-height: 76px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+    }
+    .persona-btn:hover {
+      background: rgba(64,145,108,0.25);
+      border-color: var(--green-400);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+    .persona-btn:active { transform: translateY(0); }
+    .persona-btn .p-emoji { font-size: 26px; }
+    .persona-btn .p-name  { font-size: 14px; font-weight: 700; color: var(--white); }
+    .persona-btn .p-occ   { font-size: 11px; color: var(--green-400); font-weight: 500; }
+    .persona-btn .p-kn    { font-size: 11px; color: rgba(116,198,157,0.7); }
+
+    /* Scanning state overlay */
+    .scan-overlay {
+      display: none;
+      position: fixed;
+      inset: 0; z-index: 200;
+      background: rgba(13,43,30,0.92);
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 20px;
+      backdrop-filter: blur(8px);
+    }
+    .scan-overlay.visible { display: flex; }
+    .scan-pulse {
+      width: 120px; height: 120px;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--green-600), var(--green-800));
+      display: flex; align-items: center; justify-content: center;
+      animation: scan-beat 0.8s ease-in-out infinite;
+      box-shadow: 0 0 0 0 rgba(64,145,108,0.6);
+    }
+    @keyframes scan-beat {
+      0%   { box-shadow: 0 0 0 0   rgba(64,145,108,0.7); transform: scale(1); }
+      50%  { box-shadow: 0 0 0 30px rgba(64,145,108,0);  transform: scale(1.06); }
+      100% { box-shadow: 0 0 0 0   rgba(64,145,108,0);   transform: scale(1); }
+    }
+    .scan-overlay p   { font-size: 18px; font-weight: 600; color: var(--white); }
+    .scan-overlay small { font-size: 14px; color: var(--green-400); }
+
+    /* ─── SCREEN 2: CONVERSATION ─────────────────────────────────────────── */
+    #screen-conv {
+      padding-top: 64px;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    /* User info ribbon */
+    .user-ribbon {
+      width: 100%;
+      background: rgba(13,43,30,0.85);
+      border-bottom: 1px solid rgba(116,198,157,0.15);
+      backdrop-filter: blur(8px);
+      padding: 10px 28px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+    }
+    .user-avatar {
+      width: 46px; height: 46px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--green-600), var(--green-400));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .user-info-text { flex: 1; }
+    .user-info-text .u-name { font-size: 16px; font-weight: 700; color: var(--white); }
+    .user-info-text .u-meta { font-size: 12px; color: var(--green-400); margin-top: 2px; }
+    .occ-badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .occ-badge.farmer   { background: rgba(74,198,157,0.2);  color: var(--green-400);  border: 1px solid rgba(74,198,157,0.35); }
+    .occ-badge.artisan  { background: rgba(245,166,35,0.2);  color: var(--amber);       border: 1px solid rgba(245,166,35,0.35); }
+    .occ-badge.labourer { background: rgba(139,92,246,0.2);  color: #a78bfa;            border: 1px solid rgba(139,92,246,0.35); }
+
+    /* Status indicator */
+    .status-strip {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 8px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      flex-shrink: 0;
+      transition: background 0.3s ease;
+    }
+    .status-strip.ready    { color: var(--green-400); }
+    .status-strip.thinking { color: var(--amber); background: rgba(245,166,35,0.06); }
+    .status-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+    }
+    .status-strip.ready    .status-dot { background: var(--green-400); }
+    .status-strip.thinking .status-dot {
+      background: var(--amber);
+      animation: blink 0.8s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+
+    /* Chat area */
+    .chat-area {
+      flex: 1;
+      width: 100%;
+      overflow-y: auto;
+      padding: 16px 28px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scroll-behavior: smooth;
+    }
+    .chat-area::-webkit-scrollbar { width: 5px; }
+    .chat-area::-webkit-scrollbar-track { background: transparent; }
+    .chat-area::-webkit-scrollbar-thumb { background: rgba(116,198,157,0.3); border-radius: 4px; }
+
+    /* Chat bubbles */
+    .chat-row { display: flex; gap: 10px; align-items: flex-start; }
+    .chat-row.question { flex-direction: row-reverse; }
+
+    .bubble-avatar {
+      width: 38px; height: 38px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .chat-row.question .bubble-avatar {
+      background: linear-gradient(135deg, var(--green-600), var(--green-400));
+      color: var(--white);
+    }
+    .chat-row.answer .bubble-avatar {
+      background: rgba(245,166,35,0.15);
+      border: 1.5px solid rgba(245,166,35,0.3);
+      color: var(--amber);
+      font-size: 20px;
+    }
+
+    .bubble {
+      max-width: 72%;
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      line-height: 1.6;
+    }
+    .chat-row.question .bubble {
+      background: linear-gradient(135deg, var(--green-700), var(--green-600));
+      color: var(--white);
+      border-bottom-right-radius: 4px;
+      font-size: 15px;
+    }
+    .chat-row.answer .bubble {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(116,198,157,0.18);
+      backdrop-filter: blur(8px);
+      border-bottom-left-radius: 4px;
+    }
+    .answer-text {
+      font-size: 15px;
+      color: var(--white);
+      line-height: 1.65;
+      margin-bottom: 10px;
+    }
+    .answer-steps {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid rgba(116,198,157,0.18);
+    }
+    .answer-steps .steps-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--amber);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .answer-steps .steps-label .kn { color: rgba(245,166,35,0.7); }
+    .answer-steps p { font-size: 13px; color: var(--green-200); line-height: 1.55; }
+    .answer-ref {
+      margin-top: 8px;
+      display: inline-block;
+      padding: 3px 10px;
+      background: rgba(245,166,35,0.12);
+      border: 1px solid rgba(245,166,35,0.25);
+      border-radius: 20px;
+      font-size: 11px;
+      color: var(--amber);
+      font-weight: 500;
+    }
+
+    /* Thinking bubble */
+    .thinking-bubble {
+      display: none;
+    }
+    .thinking-bubble.visible { display: flex; }
+    .dots span {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green-400);
+      margin: 0 3px;
+      animation: dot-bounce 1.2s ease-in-out infinite;
+    }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dot-bounce {
+      0%,80%,100% { transform: translateY(0); }
+      40%          { transform: translateY(-10px); }
+    }
+
+    /* Input area */
+    .input-area {
+      width: 100%;
+      padding: 12px 28px 20px;
+      background: rgba(13,43,30,0.9);
+      border-top: 1px solid rgba(116,198,157,0.14);
+      backdrop-filter: blur(10px);
+      flex-shrink: 0;
+    }
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+    #queryBox {
+      flex: 1;
+      background: rgba(255,255,255,0.07);
+      border: 1.5px solid rgba(116,198,157,0.25);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      font-size: 16px;
+      color: var(--white);
+      font-family: var(--font-main);
+      outline: none;
+      resize: none;
+      min-height: 56px;
+      max-height: 120px;
+      transition: border-color 0.2s;
+      line-height: 1.5;
+    }
+    #queryBox::placeholder { color: rgba(255,255,255,0.35); }
+    #queryBox:focus { border-color: var(--green-400); background: rgba(255,255,255,0.1); }
+
+    .btn-ask {
+      height: 56px;
+      padding: 0 28px;
+      background: linear-gradient(135deg, var(--green-600), var(--green-400));
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      font-family: var(--font-main);
+      box-shadow: 0 4px 18px rgba(64,145,108,0.4);
+      flex-shrink: 0;
+    }
+    .btn-ask:hover { transform: translateY(-2px); box-shadow: 0 8px 26px rgba(64,145,108,0.55); }
+    .btn-ask:active { transform: translateY(0); }
+    .btn-ask:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-finish {
+      width: 100%;
+      padding: 14px 24px;
+      background: transparent;
+      border: 1.5px solid rgba(245,166,35,0.4);
+      border-radius: var(--radius-md);
+      color: var(--amber);
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.22s;
+      font-family: var(--font-main);
+    }
+    .btn-finish:hover { background: rgba(245,166,35,0.1); border-color: var(--amber); }
+
+    /* ─── SCREEN 3: SUMMARY ──────────────────────────────────────────────── */
+    #screen-summary {
+      padding-top: 64px;
+      flex-direction: column;
+      justify-content: flex-start;
+      overflow-y: auto;
+    }
+    .summary-inner {
+      width: 100%;
+      max-width: 820px;
+      padding: 24px 28px 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .summary-heading {
+      text-align: center;
+      padding-bottom: 8px;
+    }
+    .summary-heading h2 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--white);
+    }
+    .summary-heading .kn {
+      font-size: 16px;
+      color: var(--green-400);
+      margin-top: 4px;
+    }
+
+    .summary-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(116,198,157,0.15);
+      border-radius: var(--radius-md);
+      padding: 18px 22px;
+      backdrop-filter: blur(8px);
+    }
+    .summary-card .sc-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 700;
+      color: var(--amber);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .summary-card .sc-content {
+      font-size: 15px;
+      color: var(--white);
+      line-height: 1.65;
+    }
+    .summary-card ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .summary-card ul li {
+      display: flex;
+      gap: 10px;
+      font-size: 14px;
+      color: var(--white);
+      line-height: 1.5;
+    }
+    .summary-card ul li::before { content: '›'; color: var(--green-400); font-size: 18px; line-height: 1.2; }
+    .doc-list li::before { content: '☐'; color: var(--amber) !important; }
+
+    .ref-badge {
+      display: inline-block;
+      padding: 5px 14px;
+      background: rgba(245,166,35,0.12);
+      border: 1px solid rgba(245,166,35,0.3);
+      border-radius: 20px;
+      font-size: 13px;
+      color: var(--amber);
+      font-weight: 600;
+    }
+
+    /* Action buttons row */
+    .summary-actions {
+      display: flex;
+      gap: 12px;
+      padding-bottom: 12px;
+    }
+    .btn-print {
+      flex: 1;
+      padding: 18px 16px;
+      background: linear-gradient(135deg, var(--amber-dim), var(--amber));
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius-md);
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.22s;
+      font-family: var(--font-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      box-shadow: 0 4px 18px rgba(245,166,35,0.35);
+    }
+    .btn-print:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(245,166,35,0.5); }
+    .btn-print:active { transform: translateY(0); }
+    .btn-print:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+    .btn-print .btn-kn { font-size: 12px; font-weight: 500; opacity: 0.85; }
+
+    .btn-new-session {
+      flex: 1;
+      padding: 18px 16px;
+      background: rgba(255,255,255,0.06);
+      color: var(--white);
+      border: 1.5px solid rgba(116,198,157,0.3);
+      border-radius: var(--radius-md);
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.22s;
+      font-family: var(--font-main);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .btn-new-session:hover { background: rgba(64,145,108,0.18); border-color: var(--green-400); }
+    .btn-new-session .btn-kn { font-size: 12px; font-weight: 500; opacity: 0.75; }
+
+    /* Print status toast */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(20px);
+      background: var(--text-dark);
+      color: var(--white);
+      padding: 14px 24px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+      font-weight: 500;
+      opacity: 0;
+      transition: all 0.35s ease;
+      z-index: 999;
+      box-shadow: var(--shadow-lg);
+      text-align: center;
+      max-width: 400px;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    .toast.success { border-left: 4px solid var(--green-400); }
+    .toast.error   { border-left: 4px solid var(--red); }
+    .toast.warning { border-left: 4px solid var(--amber); }
+
+    /* ─── UTILITIES ──────────────────────────────────────────────────────── */
+    .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0,0,0,0); }
+  </style>
 </head>
 <body>
-    <h1>Sahakar Seva Terminal</h1>
 
-    <button onclick="authenticate()">Simulate Fingerprint (ID 14)</button>
-    <p id="authResult"></p>
+<!-- ── TOP BAR ──────────────────────────────────────────────────────────── -->
+<header class="top-bar" role="banner">
+  <div class="logo-mark">
+    <div class="logo-icon" aria-hidden="true">🌾</div>
+    <div class="logo-text">
+      Sahakar Seva Terminal
+      <span>ಸಹಕಾರ ಸೇವಾ ಕೇಂದ್ರ · PACS Digital Kiosk</span>
+    </div>
+  </div>
+  <div class="system-time" id="clock" aria-live="off"></div>
+</header>
 
-    <hr>
+<!-- ── SCAN OVERLAY ─────────────────────────────────────────────────────── -->
+<div class="scan-overlay" id="scanOverlay" role="status" aria-live="polite">
+  <div class="scan-pulse">
+    <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+  </div>
+  <p>Scanning fingerprint… / ಬೆರಳಚ್ಚು ಸ್ಕ್ಯಾನ್ ಮಾಡಲಾಗುತ್ತಿದೆ…</p>
+  <small>Please wait / ದಯವಿಟ್ಟು ನಿರೀಕ್ಷಿಸಿ</small>
+</div>
 
-    <input type="text" id="queryBox" placeholder="Type your question" size="50">
-    <button onclick="ask()">Ask</button>
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN 1 — IDLE
+════════════════════════════════════════════════════════════════════════ -->
+<main id="screen-idle" class="screen active" role="main" aria-label="Idle screen">
+  <div class="idle-inner">
 
-    <div id="answerBox" style="margin-top: 15px; white-space: pre-wrap;"></div>
+    <!-- Fingerprint graphic -->
+    <div class="fingerprint-ring" aria-hidden="true">
+      <div class="fingerprint-svg-wrap">
+        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 8C18.7 8 8 18.7 8 32" stroke="rgba(255,255,255,0.3)" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M32 12C21 12 12 21 12 32" stroke="rgba(255,255,255,0.45)" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M32 16c-8.8 0-16 7.2-16 16" stroke="rgba(255,255,255,0.6)" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M22 32c0-5.5 4.5-10 10-10" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M22 36c0-5.5 4.5-10 10-10s10 4.5 10 10" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M26 42c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M32 20c-6.6 0-12 5.4-12 12" stroke="rgba(255,255,255,0.75)" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M32 24c-4.4 0-8 3.6-8 8" stroke="rgba(255,255,255,0.85)" stroke-width="2.5" stroke-linecap="round"/>
+          <circle cx="32" cy="32" r="2.5" fill="white"/>
+        </svg>
+      </div>
+    </div>
 
-    <script>
-        async function authenticate() {
-            const res = await fetch("/authenticate", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({fingerprint_id: 14})
-            });
-            const data = await res.json();
-            document.getElementById("authResult").innerText = JSON.stringify(data, null, 2);
-        }
+    <!-- Title -->
+    <div class="idle-title">
+      <h1>Place Finger to Begin</h1>
+      <div class="kannada">ಪ್ರಾರಂಭಿಸಲು ಬೆರಳನ್ನು ಒತ್ತಿರಿ</div>
+      <div class="subtitle">Select a demo persona below to simulate fingerprint authentication<br>ಕೆಳಗಿನ ಬಳಕೆದಾರರನ್ನು ಆಯ್ಕೆ ಮಾಡಿ</div>
+    </div>
 
-        async function ask() {
-            const query = document.getElementById("queryBox").value;
-            document.getElementById("answerBox").innerText = "Thinking...";
+    <!-- Error banner (hidden by default) -->
+    <div class="error-banner" id="errorBanner" role="alert" aria-live="assertive">
+      <div class="err-title">⚠ Not Registered / ನೋಂದಾಯಿಸಲಾಗಿಲ್ಲ</div>
+      <div class="err-body">
+        This fingerprint is not in the system.<br>
+        ಈ ಬೆರಳಚ್ಚು ವ್ಯವಸ್ಥೆಯಲ್ಲಿ ನೋಂದಣಿಯಾಗಿಲ್ಲ.<br>
+        Please visit your nearest PACS office to register.
+      </div>
+    </div>
 
-            const res = await fetch("/ask", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({
-                    fingerprint_id: 14,
-                    query: query,
-                    document_text: "LOAN APPLICATION REJECTED DUE TO MISSING LAND DOCUMENT"
-                })
-            });
-            const data = await res.json();
+    <!-- Demo label -->
+    <span class="demo-label">Demo Personas / ಡೆಮೋ ಬಳಕೆದಾರರು</span>
 
-            if (data.status === "not_registered") {
-                document.getElementById("answerBox").innerText = "Not registered. Please visit your nearest office to register.";
-                return;
-            }
+    <!-- 6 persona buttons -->
+    <div class="persona-grid" role="group" aria-label="Select demo persona">
+      <button class="persona-btn" id="btn-persona-14" onclick="authenticate(14)" aria-label="Authenticate as Ramesh, Farmer from Krishnarajpet">
+        <span class="p-emoji">🌾</span>
+        <span class="p-name">Ramesh</span>
+        <span class="p-occ">Farmer · ID 14</span>
+        <span class="p-kn">ರಮೇಶ್ · ರೈತ</span>
+      </button>
+      <button class="persona-btn" id="btn-persona-27" onclick="authenticate(27)" aria-label="Authenticate as Suresh, Farmer from Maddur">
+        <span class="p-emoji">🌾</span>
+        <span class="p-name">Suresh</span>
+        <span class="p-occ">Farmer · ID 27</span>
+        <span class="p-kn">ಸುರೇಶ್ · ರೈತ</span>
+      </button>
+      <button class="persona-btn" id="btn-persona-35" onclick="authenticate(35)" aria-label="Authenticate as Lakshmi, Farmer from Krishnarajpet">
+        <span class="p-emoji">🌾</span>
+        <span class="p-name">Lakshmi</span>
+        <span class="p-occ">Farmer · ID 35</span>
+        <span class="p-kn">ಲಕ್ಷ್ಮಿ · ರೈತ</span>
+      </button>
+      <button class="persona-btn" id="btn-persona-41" onclick="authenticate(41)" aria-label="Authenticate as Manju, Artisan from Maddur">
+        <span class="p-emoji">🔨</span>
+        <span class="p-name">Manju</span>
+        <span class="p-occ">Artisan · ID 41</span>
+        <span class="p-kn">ಮಂಜು · ಕುಶಲಕರ್ಮಿ</span>
+      </button>
+      <button class="persona-btn" id="btn-persona-52" onclick="authenticate(52)" aria-label="Authenticate as Ravi, Artisan from Krishnarajpet">
+        <span class="p-emoji">🔨</span>
+        <span class="p-name">Ravi</span>
+        <span class="p-occ">Artisan · ID 52</span>
+        <span class="p-kn">ರವಿ · ಕುಶಲಕರ್ಮಿ</span>
+      </button>
+      <button class="persona-btn" id="btn-persona-63" onclick="authenticate(63)" aria-label="Authenticate as Ganga, Landless Labourer from Maddur">
+        <span class="p-emoji">👷</span>
+        <span class="p-name">Ganga</span>
+        <span class="p-occ">Labourer · ID 63</span>
+        <span class="p-kn">ಗಂಗಾ · ಕೂಲಿ ಕಾರ್ಮಿಕ</span>
+      </button>
+    </div>
 
-            document.getElementById("answerBox").innerText =
-                "Answer: " + data.answer +
-                "\n\nNext steps: " + data.next_steps +
-                "\n\nReference: " + data.reference;
-        }
-    </script>
+  </div>
+</main>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN 2 — CONVERSATION
+════════════════════════════════════════════════════════════════════════ -->
+<section id="screen-conv" class="screen" aria-label="Conversation screen">
+
+  <!-- User ribbon -->
+  <div class="user-ribbon" id="userRibbon">
+    <div class="user-avatar" id="userAvatar" aria-hidden="true">👤</div>
+    <div class="user-info-text">
+      <div class="u-name" id="userName">—</div>
+      <div class="u-meta" id="userMeta">—</div>
+    </div>
+    <span class="occ-badge" id="occBadge">—</span>
+  </div>
+
+  <!-- Status strip -->
+  <div class="status-strip ready" id="statusStrip" role="status" aria-live="polite">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span id="statusText">Ready to help · ಸಹಾಯ ಮಾಡಲು ಸಿದ್ಧ</span>
+  </div>
+
+  <!-- Chat messages -->
+  <div class="chat-area" id="chatArea" role="log" aria-live="polite" aria-label="Conversation history">
+
+    <!-- Thinking indicator (hidden by default) -->
+    <div class="chat-row answer thinking-bubble" id="thinkingBubble" aria-label="Assistant is thinking">
+      <div class="bubble-avatar" aria-hidden="true">🤖</div>
+      <div class="bubble">
+        <div class="dots" aria-hidden="true">
+          <span></span><span></span><span></span>
+        </div>
+        <small style="font-size:12px;color:var(--green-400);margin-left:4px;">Thinking… / ಯೋಚಿಸುತ್ತಿದೆ…</small>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Input area -->
+  <div class="input-area">
+    <div class="input-row">
+      <textarea
+        id="queryBox"
+        rows="1"
+        placeholder="Type your question… / ನಿಮ್ಮ ಪ್ರಶ್ನೆ ಬರೆಯಿರಿ…"
+        aria-label="Type your question"
+        onkeydown="handleKey(event)"
+      ></textarea>
+      <button class="btn-ask" id="btnAsk" onclick="ask()" aria-label="Send question">
+        Ask &nbsp;›
+      </button>
+    </div>
+    <button class="btn-finish" id="btnFinish" onclick="finishSession()" aria-label="Finish session and get summary">
+      ✅ &nbsp;Finish Session &amp; Get Summary &nbsp;·&nbsp; ಸೆಷನ್ ಮುಗಿಸಿ ಸಾರಾಂಶ ಪಡೆಯಿರಿ
+    </button>
+  </div>
+
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     SCREEN 3 — SUMMARY
+════════════════════════════════════════════════════════════════════════ -->
+<section id="screen-summary" class="screen" aria-label="Session summary screen">
+  <div class="summary-inner">
+
+    <div class="summary-heading">
+      <h2>📋 Session Summary</h2>
+      <div class="kn">ಅಧಿವೇಶನ ಸಾರಾಂಶ</div>
+    </div>
+
+    <!-- Main Issue -->
+    <div class="summary-card" id="sc-issue">
+      <div class="sc-label">▶ Main Issue · ಮುಖ್ಯ ಸಮಸ್ಯೆ</div>
+      <div class="sc-content" id="sc-issue-text">—</div>
+    </div>
+
+    <!-- Questions Discussed -->
+    <div class="summary-card" id="sc-questions">
+      <div class="sc-label">❓ Questions Discussed · ಚರ್ಚಿಸಿದ ಪ್ರಶ್ನೆಗಳು</div>
+      <ul class="sc-content" id="sc-questions-list"></ul>
+    </div>
+
+    <!-- Next Steps -->
+    <div class="summary-card" id="sc-steps">
+      <div class="sc-label">✅ Recommended Next Steps · ಮುಂದಿನ ಹಂತಗಳು</div>
+      <div class="sc-content" id="sc-steps-text">—</div>
+    </div>
+
+    <!-- Required Documents -->
+    <div class="summary-card" id="sc-docs">
+      <div class="sc-label">📄 Required Documents · ಅಗತ್ಯ ದಾಖಲೆಗಳು</div>
+      <ul class="sc-content doc-list" id="sc-docs-list"></ul>
+    </div>
+
+    <!-- Reference -->
+    <div class="summary-card" id="sc-ref" style="text-align:center;">
+      <div class="sc-label" style="justify-content:center;">📌 Reference · ಉಲ್ಲೇಖ</div>
+      <span class="ref-badge" id="sc-ref-text">—</span>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="summary-actions">
+      <button class="btn-print" id="btnPrint" onclick="printSummary()" aria-label="Print summary">
+        🖨 &nbsp;Print Summary
+        <span class="btn-kn">ಸಾರಾಂಶ ಮುದ್ರಿಸಿ</span>
+      </button>
+      <button class="btn-new-session" onclick="newSession()" aria-label="Start new session">
+        🔄 &nbsp;New Session
+        <span class="btn-kn">ಹೊಸ ಅಧಿವೇಶನ</span>
+      </button>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── TOAST ──────────────────────────────────────────────────────────────── -->
+<div class="toast" id="toast" role="alert" aria-live="assertive"></div>
+
+<!-- ════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════════════════════════════════ -->
+<script>
+  /* ── State ───────────────────────────────────────────────────────────── */
+  let currentFingerprintId = null;
+  let currentSummary       = null;
+
+  const OCC_MAP = {
+    "Farmer":           { emoji: "🌾", klass: "farmer",   kn: "ರೈತ" },
+    "Artisan":          { emoji: "🔨", klass: "artisan",  kn: "ಕುಶಲಕರ್ಮಿ" },
+    "Landless Labourer":{ emoji: "👷", klass: "labourer", kn: "ಕೂಲಿ ಕಾರ್ಮಿಕ" },
+  };
+
+  /* ── Clock ───────────────────────────────────────────────────────────── */
+  function updateClock() {
+    const now  = new Date();
+    const time = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const date = now.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    document.getElementById("clock").textContent = `${date}  ${time}`;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  /* ── Screen transitions ──────────────────────────────────────────────── */
+  function showScreen(id) {
+    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+  }
+
+  /* ── Toast ───────────────────────────────────────────────────────────── */
+  let toastTimer;
+  function showToast(msg, type = "success", duration = 4000) {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className   = `toast show ${type}`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.classList.remove("show"); }, duration);
+  }
+
+  /* ── Error banner (idle screen) ──────────────────────────────────────── */
+  function showErrorBanner(visible) {
+    const b = document.getElementById("errorBanner");
+    b.classList.toggle("visible", visible);
+  }
+
+  /* ── Set status (conversation screen) ───────────────────────────────── */
+  function setStatus(state) {  // 'ready' | 'thinking'
+    const strip = document.getElementById("statusStrip");
+    const txt   = document.getElementById("statusText");
+    strip.className = `status-strip ${state}`;
+    if (state === "ready") {
+      txt.textContent = "Ready to help · ಸಹಾಯ ಮಾಡಲು ಸಿದ್ಧ";
+    } else {
+      txt.textContent = "Thinking… · ಯೋಚಿಸುತ್ತಿದೆ…";
+    }
+    document.getElementById("thinkingBubble").classList.toggle("visible", state === "thinking");
+  }
+
+  /* ── Authenticate ───────────────────────────────────────────────────── */
+  async function authenticate(fingerprintId) {
+    showErrorBanner(false);
+    const overlay = document.getElementById("scanOverlay");
+    overlay.classList.add("visible");
+
+    try {
+      const res  = await fetch("/authenticate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fingerprint_id: fingerprintId })
+      });
+      const data = await res.json();
+
+      if (data.status === "not_registered") {
+        overlay.classList.remove("visible");
+        showErrorBanner(true);
+        return;
+      }
+
+      if (data.status === "ok") {
+        overlay.classList.remove("visible");
+        currentFingerprintId = fingerprintId;
+        enterConversation(data.user);
+      }
+    } catch (err) {
+      overlay.classList.remove("visible");
+      showToast("Connection error. Please try again. / ಸಂಪರ್ಕ ದೋಷ.", "error");
+    }
+  }
+
+  /* ── Enter conversation screen ──────────────────────────────────────── */
+  function enterConversation(user) {
+    const occ   = OCC_MAP[user.occupation] || { emoji: "👤", klass: "farmer", kn: user.occupation };
+    const meta  = `${user.village}  ·  ${user.occupation}  ·  ${occ.kn}`;
+    const land  = user.land_acres ? `  ·  ${user.land_acres} acres` : "";
+
+    document.getElementById("userAvatar").textContent     = occ.emoji;
+    document.getElementById("userName").textContent       = user.name;
+    document.getElementById("userMeta").textContent       = meta + land;
+    document.getElementById("occBadge").textContent       = `${occ.emoji} ${user.occupation}`;
+    document.getElementById("occBadge").className         = `occ-badge ${occ.klass}`;
+
+    // Clear previous chat
+    const chatArea = document.getElementById("chatArea");
+    // Remove all previous chat rows except the thinking bubble
+    Array.from(chatArea.querySelectorAll(".chat-row:not(#thinkingBubble)")).forEach(e => e.remove());
+
+    // Reset thinking bubble to end of chat
+    chatArea.appendChild(document.getElementById("thinkingBubble"));
+
+    setStatus("ready");
+    document.getElementById("queryBox").value = "";
+    showScreen("screen-conv");
+    document.getElementById("queryBox").focus();
+  }
+
+  /* ── Ask a question ─────────────────────────────────────────────────── */
+  async function ask() {
+    const box   = document.getElementById("queryBox");
+    const query = box.value.trim();
+    if (!query || !currentFingerprintId) return;
+
+    box.value = "";
+    box.style.height = "auto";
+
+    // Add question bubble
+    addBubble("question", query);
+
+    // Show thinking state
+    setStatus("thinking");
+    document.getElementById("btnAsk").disabled   = true;
+    document.getElementById("btnFinish").disabled = true;
+    scrollChat();
+
+    try {
+      const res  = await fetch("/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fingerprint_id: currentFingerprintId,
+          query:          query,
+          document_text:  ""
+        })
+      });
+      const data = await res.json();
+
+      if (data.status === "not_registered") {
+        setStatus("ready");
+        showToast("Session expired. Please re-authenticate. / ಮರಳಿ ಪ್ರಮಾಣೀಕರಿಸಿ.", "error");
+        newSession();
+        return;
+      }
+
+      if (data.status === "ok") {
+        addAnswerBubble(data.answer, data.next_steps, data.reference);
+      }
+    } catch (err) {
+      addAnswerBubble(
+        "Connection error — please try again. / ಸಂಪರ್ಕ ದೋಷ — ಮರಳಿ ಪ್ರಯತ್ನಿಸಿ.",
+        "",
+        "Offline"
+      );
+    } finally {
+      setStatus("ready");
+      document.getElementById("btnAsk").disabled   = false;
+      document.getElementById("btnFinish").disabled = false;
+      scrollChat();
+    }
+  }
+
+  /* ── Handle Enter key in textarea ───────────────────────────────────── */
+  function handleKey(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      ask();
+    }
+  }
+
+  /* ── Add a question bubble ──────────────────────────────────────────── */
+  function addBubble(type, text) {
+    const chatArea = document.getElementById("chatArea");
+    const thinkBbl = document.getElementById("thinkingBubble");
+    const row = document.createElement("div");
+    row.className = `chat-row ${type}`;
+    const initial = currentFingerprintId ? "U" : "?";
+    row.innerHTML = `
+      <div class="bubble-avatar" aria-hidden="true">${initial}</div>
+      <div class="bubble">${escHtml(text)}</div>
+    `;
+    chatArea.insertBefore(row, thinkBbl);
+  }
+
+  /* ── Add an answer bubble ───────────────────────────────────────────── */
+  function addAnswerBubble(answer, nextSteps, reference) {
+    const chatArea = document.getElementById("chatArea");
+    const thinkBbl = document.getElementById("thinkingBubble");
+    const row      = document.createElement("div");
+    row.className  = "chat-row answer";
+
+    let stepsHtml = "";
+    if (nextSteps) {
+      stepsHtml = `
+        <div class="answer-steps">
+          <div class="steps-label">Next Steps <span class="kn">· ಮುಂದಿನ ಹಂತಗಳು</span></div>
+          <p>${escHtml(nextSteps)}</p>
+        </div>`;
+    }
+    let refHtml = "";
+    if (reference) {
+      refHtml = `<span class="answer-ref">📌 ${escHtml(reference)}</span>`;
+    }
+
+    row.innerHTML = `
+      <div class="bubble-avatar" aria-hidden="true">🤖</div>
+      <div class="bubble">
+        <div class="answer-text">${escHtml(answer)}</div>
+        ${stepsHtml}
+        ${refHtml}
+      </div>
+    `;
+    chatArea.insertBefore(row, thinkBbl);
+  }
+
+  /* ── Scroll chat to bottom ──────────────────────────────────────────── */
+  function scrollChat() {
+    const chatArea = document.getElementById("chatArea");
+    chatArea.scrollTop = chatArea.scrollHeight;
+  }
+
+  /* ── Finish session → get summary ───────────────────────────────────── */
+  async function finishSession() {
+    document.getElementById("btnFinish").disabled = true;
+    setStatus("thinking");
+    document.getElementById("statusText").textContent = "Generating summary… · ಸಾರಾಂಶ ತಯಾರಿಸಲಾಗುತ್ತಿದೆ…";
+
+    try {
+      const res  = await fetch("/finish", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fingerprint_id: currentFingerprintId })
+      });
+      const data = await res.json();
+
+      if (data.status === "ok" && data.summary) {
+        currentSummary = data.summary;
+        renderSummary(data.summary);
+        showScreen("screen-summary");
+      } else {
+        showToast("Could not generate summary. / ಸಾರಾಂಶ ಲಭ್ಯವಿಲ್ಲ.", "error");
+      }
+    } catch (err) {
+      showToast("Connection error while finishing. / ಸಂಪರ್ಕ ದೋಷ.", "error");
+    } finally {
+      setStatus("ready");
+      document.getElementById("btnFinish").disabled = false;
+    }
+  }
+
+  /* ── Render summary data into Screen 3 ─────────────────────────────── */
+  function renderSummary(s) {
+    document.getElementById("sc-issue-text").textContent = s.main_issue || "—";
+
+    const qList = document.getElementById("sc-questions-list");
+    qList.innerHTML = "";
+    (s.questions_discussed || []).forEach(q => {
+      const li = document.createElement("li");
+      li.textContent = q;
+      qList.appendChild(li);
+    });
+    if (!qList.children.length) {
+      const li = document.createElement("li");
+      li.textContent = "—";
+      qList.appendChild(li);
+    }
+
+    document.getElementById("sc-steps-text").textContent = s.recommended_next_steps || "—";
+
+    const dList = document.getElementById("sc-docs-list");
+    dList.innerHTML = "";
+    (s.required_documents || []).forEach(d => {
+      const li = document.createElement("li");
+      li.textContent = d;
+      dList.appendChild(li);
+    });
+    if (!dList.children.length) {
+      const li = document.createElement("li");
+      li.textContent = "No specific documents mentioned. / ನಿರ್ದಿಷ್ಟ ದಾಖಲೆಗಳಿಲ್ಲ.";
+      dList.appendChild(li);
+    }
+
+    document.getElementById("sc-ref-text").textContent = s.reference || "—";
+  }
+
+  /* ── Print summary ──────────────────────────────────────────────────── */
+  async function printSummary() {
+    if (!currentSummary || !currentFingerprintId) return;
+    const btn = document.getElementById("btnPrint");
+    btn.disabled  = true;
+    btn.innerHTML = `⏳ Printing… / ಮುದ್ರಿಸಲಾಗುತ್ತಿದೆ… <span class="btn-kn">Please wait</span>`;
+
+    try {
+      const res  = await fetch("/print_summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fingerprint_id: currentFingerprintId,
+          summary:        currentSummary
+        })
+      });
+      const data = await res.json();
+
+      if (data.status === "printed") {
+        showToast("✅ Sent to printer! / ಮುದ್ರಕಕ್ಕೆ ಕಳುಹಿಸಲಾಗಿದೆ!", "success");
+      } else if (data.status === "print_error") {
+        showToast(`⚠ Print error: ${data.message}`, "warning", 6000);
+      } else {
+        showToast(`❌ ${data.message || "Unknown error."}`, "error");
+      }
+    } catch (err) {
+      showToast("Connection error — could not print. / ಮುದ್ರಣ ದೋಷ.", "error");
+    } finally {
+      btn.disabled  = false;
+      btn.innerHTML = `🖨 &nbsp;Print Summary <span class="btn-kn">ಸಾರಾಂಶ ಮುದ್ರಿಸಿ</span>`;
+    }
+  }
+
+  /* ── New session ────────────────────────────────────────────────────── */
+  function newSession() {
+    currentFingerprintId = null;
+    currentSummary       = null;
+    showErrorBanner(false);
+    showScreen("screen-idle");
+  }
+
+  /* ── Textarea auto-resize ───────────────────────────────────────────── */
+  document.getElementById("queryBox").addEventListener("input", function () {
+    this.style.height = "auto";
+    this.style.height = Math.min(this.scrollHeight, 120) + "px";
+  });
+
+  /* ── Escape HTML helper ─────────────────────────────────────────────── */
+  function escHtml(str) {
+    if (!str) return "";
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/\n/g, "<br>");
+  }
+</script>
 </body>
 </html>

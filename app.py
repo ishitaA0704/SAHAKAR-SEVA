@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, send_file
 from context_builder import build_context
 from rag_engine import get_ai_answer
+from pdf_printer import generate_and_print
 import os
 import json
 
@@ -44,6 +45,27 @@ def ask():
         parsed_answer = {"answer": raw_answer, "next_steps": "", "reference": ""}
 
     return jsonify({"status": "ok", **parsed_answer})
+
+@app.route("/print_summary", methods=["POST"])
+def print_summary():
+    """
+    Receives the session summary + fingerprint_id, generates an A4 PDF,
+    and silently prints it to the default Windows printer via pywin32.
+    Body: { fingerprint_id, summary: {...} }
+    Returns: { status: 'printed'|'print_error'|'error', message, pdf_path? }
+    """
+    data = request.json
+    fingerprint_id = int(data.get("fingerprint_id", 0))
+    summary = data.get("summary", {})
+
+    # Rebuild context for user + jurisdiction info (no query needed)
+    context = build_context(fingerprint_id, document_text="", query_text="")
+    if context is None:
+        return jsonify({"status": "error", "message": "User not found — cannot generate PDF."}), 400
+
+    result = generate_and_print(summary, context["user"], context["jurisdiction"])
+    return jsonify(result)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
