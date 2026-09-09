@@ -2,6 +2,9 @@ import os
 import json
 import requests
 
+LANG_NAMES = {"en": "English", "hi": "Hindi", "kn": "Kannada"}
+
+
 def load_knowledge_for_occupation(occupation):
     folder_map = {
         "Farmer": "knowledge_base/farmer",
@@ -17,10 +20,11 @@ def load_knowledge_for_occupation(occupation):
     return combined_text
 
 
-def get_ai_answer(context, api_key):
+def get_ai_answer(context, api_key, language="en"):
     knowledge = load_knowledge_for_occupation(context["user"]["occupation"])
 
     if not knowledge.strip():
+        lang_name = LANG_NAMES.get(language, "English")
         fallback = {
             "answer": "I don't have verified scheme information for this category yet. Please contact your local cooperative office directly for accurate guidance.",
             "next_steps": "Visit your nearest PACS/cooperative office for scheme information.",
@@ -28,7 +32,14 @@ def get_ai_answer(context, api_key):
         }
         return json.dumps(fallback)
 
-    prompt = f"""You are a cooperative assistant helping a rural {context['user']['occupation']}.
+    lang_name = LANG_NAMES.get(language, "English")
+    script_name = "Devanagari script" if language == "hi" else "Kannada script" if language == "kn" else "English"
+
+    print(f"DEBUG: language={language}, lang_name={lang_name}")
+
+    prompt = f"""IMPORTANT: You must respond entirely in {lang_name} ({script_name}). This applies to the "answer", "next_steps", and "reference" fields in your JSON output. This is mandatory regardless of what language the source documents below are written in.
+
+You are a cooperative assistant helping a rural {context['user']['occupation']}.
 
 User profile: {context['user']}
 Jurisdiction (nearest office): {context['jurisdiction']}
@@ -39,6 +50,9 @@ Relevant scheme rules:
 {knowledge}
 
 Answer ONLY using the rules above. If the question is unrelated to cooperative/scheme matters, politely refuse and redirect to cooperative topics.
+
+REMINDER: Write your "answer", "next_steps", and "reference" values entirely in {lang_name}, even though the scheme rules above are in English. Translate the relevant information into {lang_name} yourself.
+
 Respond strictly in JSON with no other text:
 {{"answer": "...", "next_steps": "...", "reference": "..."}}
 """

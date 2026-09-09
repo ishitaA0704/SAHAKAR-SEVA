@@ -7,7 +7,7 @@
   <meta name="description" content="Multilingual cooperative assistance terminal for rural farmers, artisans, and landless labourers in Karnataka." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Kannada:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
   <style>
     /* ─── RESET & ROOT ────────────────────────────────────────────────────── */
@@ -40,7 +40,7 @@
       --shadow-md: 0 8px 32px rgba(0,0,0,0.18);
       --shadow-lg: 0 20px 60px rgba(0,0,0,0.28);
 
-      --font-main: 'Noto Sans', 'Noto Sans Kannada', sans-serif;
+      --font-main: 'Noto Sans', 'Noto Sans Kannada', 'Noto Sans Devanagari', sans-serif;
     }
 
     html, body {
@@ -129,6 +129,33 @@
       color: var(--green-400);
       font-weight: 500;
       font-variant-numeric: tabular-nums;
+    }
+
+    /* ─── LANGUAGE SELECTOR ──────────────────────────────────────────────── */
+    .lang-selector {
+      position: fixed;
+      top: 76px;
+      right: 20px;
+      display: flex;
+      gap: 6px;
+      z-index: 99;
+    }
+    .lang-btn {
+      padding: 6px 14px;
+      background: rgba(255,255,255,0.08);
+      border: 1.5px solid rgba(116,198,157,0.25);
+      border-radius: 20px;
+      color: var(--white);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: var(--font-main);
+    }
+    .lang-btn:hover { background: rgba(64,145,108,0.25); }
+    .lang-btn.active {
+      background: var(--green-600);
+      border-color: var(--green-400);
     }
 
     /* ─── SCREEN 1: IDLE ─────────────────────────────────────────────────── */
@@ -729,6 +756,13 @@
   <div class="system-time" id="clock" aria-live="off"></div>
 </header>
 
+<!-- ── LANGUAGE SELECTOR ────────────────────────────────────────────────── -->
+<div class="lang-selector" id="langSelector" role="group" aria-label="Select language">
+  <button class="lang-btn active" onclick="setLanguage('en')" id="lang-en">EN</button>
+  <button class="lang-btn" onclick="setLanguage('hi')" id="lang-hi">हि</button>
+  <button class="lang-btn" onclick="setLanguage('kn')" id="lang-kn">ಕನ</button>
+</div>
+
 <!-- ── SCAN OVERLAY ─────────────────────────────────────────────────────── -->
 <div class="scan-overlay" id="scanOverlay" role="status" aria-live="polite">
   <div class="scan-pulse">
@@ -768,15 +802,15 @@
 
     <!-- Title -->
     <div class="idle-title">
-      <h1>Place Finger to Begin</h1>
-      <div class="kannada">ಪ್ರಾರಂಭಿಸಲು ಬೆರಳನ್ನು ಒತ್ತಿರಿ</div>
-      <div class="subtitle">Select a demo persona below to simulate fingerprint authentication<br>ಕೆಳಗಿನ ಬಳಕೆದಾರರನ್ನು ಆಯ್ಕೆ ಮಾಡಿ</div>
+      <h1 data-i18n="idle_title">Place Finger to Begin</h1>
+      <div class="kannada" data-i18n="idle_title_sub">ಪ್ರಾರಂಭಿಸಲು ಬೆರಳನ್ನು ಒತ್ತಿರಿ</div>
+      <div class="subtitle" data-i18n="idle_subtitle">Select a demo persona below to simulate fingerprint authentication</div>
     </div>
 
     <!-- Error banner (hidden by default) -->
     <div class="error-banner" id="errorBanner" role="alert" aria-live="assertive">
-      <div class="err-title">⚠ Not Registered / ನೋಂದಾಯಿಸಲಾಗಿಲ್ಲ</div>
-      <div class="err-body">
+      <div class="err-title" data-i18n="err_title">⚠ Not Registered / ನೋಂದಾಯಿಸಲಾಗಿಲ್ಲ</div>
+      <div class="err-body" data-i18n="err_body">
         This fingerprint is not in the system.<br>
         ಈ ಬೆರಳಚ್ಚು ವ್ಯವಸ್ಥೆಯಲ್ಲಿ ನೋಂದಣಿಯಾಗಿಲ್ಲ.<br>
         Please visit your nearest PACS office to register.
@@ -784,7 +818,7 @@
     </div>
 
     <!-- Demo label -->
-    <span class="demo-label">Demo Personas / ಡೆಮೋ ಬಳಕೆದಾರರು</span>
+    <span class="demo-label" data-i18n="demo_label">Demo Personas / ಡೆಮೋ ಬಳಕೆದಾರರು</span>
 
     <!-- 6 persona buttons -->
     <div class="persona-grid" role="group" aria-label="Select demo persona">
@@ -877,11 +911,11 @@
         onkeydown="handleKey(event)"
       ></textarea>
       <button class="btn-ask" id="btnAsk" onclick="ask()" aria-label="Send question">
-        Ask &nbsp;›
+        <span data-i18n="ask_btn">Ask</span> &nbsp;›
       </button>
     </div>
     <button class="btn-finish" id="btnFinish" onclick="finishSession()" aria-label="Finish session and get summary">
-      ✅ &nbsp;Finish Session &amp; Get Summary &nbsp;·&nbsp; ಸೆಷನ್ ಮುಗಿಸಿ ಸಾರಾಂಶ ಪಡೆಯಿರಿ
+      ✅ &nbsp;<span data-i18n="finish_btn">Finish Session &amp; Get Summary &nbsp;·&nbsp; ಸೆಷನ್ ಮುಗಿಸಿ ಸಾರಾಂಶ ಪಡೆಯಿರಿ</span>
     </button>
   </div>
 
@@ -953,12 +987,69 @@
   /* ── State ───────────────────────────────────────────────────────────── */
   let currentFingerprintId = null;
   let currentSummary       = null;
+  let currentLang           = "en";
 
   const OCC_MAP = {
     "Farmer":           { emoji: "🌾", klass: "farmer",   kn: "ರೈತ" },
     "Artisan":          { emoji: "🔨", klass: "artisan",  kn: "ಕುಶಲಕರ್ಮಿ" },
     "Landless Labourer":{ emoji: "👷", klass: "labourer", kn: "ಕೂಲಿ ಕಾರ್ಮಿಕ" },
   };
+
+  /* ── Translations (draft — please have a Hindi speaker verify) ─────── */
+  const TRANSLATIONS = {
+    en: {
+      idle_title: "Place Finger to Begin",
+      idle_title_sub: "Place Finger to Begin",
+      idle_subtitle: "Select a demo persona below to simulate fingerprint authentication",
+      demo_label: "Demo Personas",
+      ask_btn: "Ask",
+      finish_btn: "Finish Session & Get Summary",
+      query_placeholder: "Type your question…",
+      err_title: "⚠ Not Registered",
+      err_body: "This fingerprint is not in the system. Please visit your nearest PACS office to register."
+    },
+    hi: {
+      idle_title: "शुरू करने के लिए उंगली रखें",
+      idle_title_sub: "शुरू करने के लिए उंगली रखें",
+      idle_subtitle: "फिंगरप्रिंट प्रमाणीकरण का अनुकरण करने के लिए नीचे एक डेमो व्यक्ति चुनें",
+      demo_label: "डेमो उपयोगकर्ता",
+      ask_btn: "पूछें",
+      finish_btn: "सत्र समाप्त करें और सारांश प्राप्त करें",
+      query_placeholder: "अपना प्रश्न लिखें…",
+      err_title: "⚠ पंजीकृत नहीं है",
+      err_body: "यह फिंगरप्रिंट सिस्टम में नहीं है। कृपया पंजीकरण के लिए अपने निकटतम पीएसीएस कार्यालय जाएँ।"
+    },
+    kn: {
+      idle_title: "ಪ್ರಾರಂಭಿಸಲು ಬೆರಳನ್ನು ಒತ್ತಿರಿ",
+      idle_title_sub: "ಪ್ರಾರಂಭಿಸಲು ಬೆರಳನ್ನು ಒತ್ತಿರಿ",
+      idle_subtitle: "ಕೆಳಗಿನ ಬಳಕೆದಾರರನ್ನು ಆಯ್ಕೆ ಮಾಡಿ",
+      demo_label: "ಡೆಮೋ ಬಳಕೆದಾರರು",
+      ask_btn: "ಕೇಳಿ",
+      finish_btn: "ಸೆಷನ್ ಮುಗಿಸಿ ಸಾರಾಂಶ ಪಡೆಯಿರಿ",
+      query_placeholder: "ನಿಮ್ಮ ಪ್ರಶ್ನೆ ಬರೆಯಿರಿ…",
+      err_title: "⚠ ನೋಂದಾಯಿಸಲಾಗಿಲ್ಲ",
+      err_body: "ಈ ಬೆರಳಚ್ಚು ವ್ಯವಸ್ಥೆಯಲ್ಲಿ ನೋಂದಣಿಯಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ನೋಂದಾಯಿಸಲು ಹತ್ತಿರದ PACS ಕಚೇರಿಗೆ ಭೇಟಿ ನೀಡಿ."
+    }
+  };
+
+  function setLanguage(lang) {
+    currentLang = lang;
+
+    document.querySelectorAll(".lang-btn").forEach(btn => btn.classList.remove("active"));
+    document.getElementById("lang-" + lang).classList.add("active");
+
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      const key = el.getAttribute("data-i18n");
+      if (TRANSLATIONS[lang] && TRANSLATIONS[lang][key]) {
+        el.textContent = TRANSLATIONS[lang][key];
+      }
+    });
+
+    const queryBox = document.getElementById("queryBox");
+    if (queryBox && TRANSLATIONS[lang].query_placeholder) {
+      queryBox.placeholder = TRANSLATIONS[lang].query_placeholder;
+    }
+  }
 
   /* ── Clock ───────────────────────────────────────────────────────────── */
   function updateClock() {
@@ -1063,6 +1154,7 @@
   }
 
   /* ── Ask a question ─────────────────────────────────────────────────── */
+    /* ── Ask a question ─────────────────────────────────────────────────── */
   async function ask() {
     const box   = document.getElementById("queryBox");
     const query = box.value.trim();
@@ -1071,10 +1163,8 @@
     box.value = "";
     box.style.height = "auto";
 
-    // Add question bubble
     addBubble("question", query);
 
-    // Show thinking state
     setStatus("thinking");
     document.getElementById("btnAsk").disabled   = true;
     document.getElementById("btnFinish").disabled = true;
@@ -1087,7 +1177,8 @@
         body: JSON.stringify({
           fingerprint_id: currentFingerprintId,
           query:          query,
-          document_text:  ""
+          document_text:  "",
+          language:       currentLang
         })
       });
       const data = await res.json();
@@ -1116,6 +1207,7 @@
     }
   }
 
+  /* ── Handle Enter key in textarea ───────────────────────────────────── */
   /* ── Handle Enter key in textarea ───────────────────────────────────── */
   function handleKey(e) {
     if (e.key === "Enter" && !e.shiftKey) {
