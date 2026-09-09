@@ -1277,7 +1277,10 @@
       const res  = await fetch("/finish", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fingerprint_id: currentFingerprintId })
+        body: JSON.stringify({
+          fingerprint_id: currentFingerprintId,
+          language: currentLang
+        })
       });
       const data = await res.json();
 

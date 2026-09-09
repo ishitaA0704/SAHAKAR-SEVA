@@ -37,11 +37,12 @@ def get_ai_answer(context, api_key, language="en"):
 
     print(f"DEBUG: language={language}, lang_name={lang_name}")
 
-    prompt = f"""IMPORTANT: You must respond entirely in {lang_name} ({script_name}). This applies to the "answer", "next_steps", and "reference" fields in your JSON output. This is mandatory regardless of what language the source documents below are written in.
+    system_instruction = f"""You are a cooperative assistant helping a rural {context['user']['occupation']}.
+CRITICAL MANDATE: You MUST respond entirely in {lang_name} ({script_name}) for ALL string values in your JSON output ("answer", "next_steps", "reference").
+Translate all relevant guidance and scheme rules from the English reference text into {lang_name} ({script_name}).
+Do NOT output English text for these fields under any circumstances when target language is {lang_name}."""
 
-You are a cooperative assistant helping a rural {context['user']['occupation']}.
-
-User profile: {context['user']}
+    user_prompt = f"""User profile: {context['user']}
 Jurisdiction (nearest office): {context['jurisdiction']}
 Document text (OCR): {context['document_text']}
 Question: {context['query']}
@@ -51,9 +52,7 @@ Relevant scheme rules:
 
 Answer ONLY using the rules above. If the question is unrelated to cooperative/scheme matters, politely refuse and redirect to cooperative topics.
 
-REMINDER: Write your "answer", "next_steps", and "reference" values entirely in {lang_name}, even though the scheme rules above are in English. Translate the relevant information into {lang_name} yourself.
-
-Respond strictly in JSON with no other text:
+Respond strictly in valid JSON matching this schema:
 {{"answer": "...", "next_steps": "...", "reference": "..."}}
 """
 
@@ -61,7 +60,15 @@ Respond strictly in JSON with no other text:
         response = requests.post(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
             params={"key": api_key},
-            json={"contents": [{"parts": [{"text": prompt}]}]},
+            json={
+                "systemInstruction": {
+                    "parts": [{"text": system_instruction}]
+                },
+                "contents": [{"parts": [{"text": user_prompt}]}],
+                "generationConfig": {
+                    "responseMimeType": "application/json"
+                }
+            },
             timeout=30
         )
         response.raise_for_status()
@@ -78,7 +85,7 @@ Respond strictly in JSON with no other text:
         return json.dumps(fallback)
 
 
-def get_session_summary(context, conversation_history, api_key):
+def get_session_summary(context, conversation_history, api_key, language="en"):
     knowledge = load_knowledge_for_occupation(context["user"]["occupation"])
 
     if not knowledge.strip():
@@ -95,15 +102,20 @@ def get_session_summary(context, conversation_history, api_key):
         f"Q: {turn['query']}\nA: {turn['answer']}" for turn in conversation_history
     )
 
-    prompt = f"""You are summarizing a cooperative assistance session for a rural {context['user']['occupation']}.
+    lang_name = LANG_NAMES.get(language, "English")
+    script_name = "Devanagari script" if language == "hi" else "Kannada script" if language == "kn" else "English"
 
-Farmer profile: {context['user']}
+    system_instruction = f"""You are summarizing a cooperative assistance session for a rural {context['user']['occupation']}.
+CRITICAL MANDATE: You MUST respond entirely in {lang_name} ({script_name}) for ALL string fields in your JSON output.
+Translate all summary points from the conversation into {lang_name} ({script_name})."""
+
+    user_prompt = f"""Farmer profile: {context['user']}
 Jurisdiction: {context['jurisdiction']}
 
 Full conversation:
 {history_text}
 
-Create a concise final summary. Respond strictly in JSON with no other text:
+Create a concise final summary. Respond strictly in JSON:
 {{
     "main_issue": "...",
     "questions_discussed": ["...", "..."],
@@ -118,7 +130,15 @@ Do not add information that wasn't established in the conversation.
         response = requests.post(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-lite-latest:generateContent",
             params={"key": api_key},
-            json={"contents": [{"parts": [{"text": prompt}]}]},
+            json={
+                "systemInstruction": {
+                    "parts": [{"text": system_instruction}]
+                },
+                "contents": [{"parts": [{"text": user_prompt}]}],
+                "generationConfig": {
+                    "responseMimeType": "application/json"
+                }
+            },
             timeout=30
         )
         response.raise_for_status()

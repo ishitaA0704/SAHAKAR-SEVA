@@ -45,12 +45,13 @@ def ask():
     fingerprint_id = int(data["fingerprint_id"])
     query = data["query"]
     document_text = data.get("document_text", "")
+    language = data.get("language", "en")
 
     context = build_context(fingerprint_id, document_text, query)
     if context is None:
         return jsonify({"status": "not_registered"})
 
-    raw_answer = get_ai_answer(context, GEMINI_KEY)
+    raw_answer = get_ai_answer(context, GEMINI_KEY, language=language)
 
     try:
         parsed_answer = json.loads(clean_json_response(raw_answer))
@@ -69,13 +70,14 @@ def ask():
 def finish():
     data = request.json
     fingerprint_id = int(data["fingerprint_id"])
+    language = data.get("language", "en")
 
     context = build_context(fingerprint_id, document_text="", query_text="")
     if context is None:
         return jsonify({"status": "not_registered"})
 
     history = conversations.get(fingerprint_id, [])
-    raw_summary = get_session_summary(context, history, GEMINI_KEY)
+    raw_summary = get_session_summary(context, history, GEMINI_KEY, language=language)
 
     try:
         parsed_summary = json.loads(clean_json_response(raw_summary))

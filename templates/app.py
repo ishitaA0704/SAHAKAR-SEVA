@@ -8,8 +8,7 @@ import json
 app = Flask(__name__)
 
 conversations = {}  # {fingerprint_id: [{"query": ..., "answer": ...}, ...]}
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
-
+GEMINI_KEY = os.environ.get("AQ.Ab8RN6KISs6xiKM1vMHGv0_s2zgPM0RrwMknazC3Gwk7mZgSqw")
 
 def clean_json_response(raw_text):
     text = raw_text.strip()
