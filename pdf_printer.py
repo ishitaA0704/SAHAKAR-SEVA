@@ -28,93 +28,128 @@ from reportlab.pdfbase.ttfonts import TTFont
 DARK_GREEN   = colors.HexColor("#1a4731")
 MID_GREEN    = colors.HexColor("#2d6a4f")
 LIGHT_GREEN  = colors.HexColor("#d8f3dc")
-AMBER        = colors.HexColor("#f5a623")
+AMBER        = colors.HexColor("#e6940a")
 CREAM        = colors.HexColor("#faf7f0")
 DARK_TEXT    = colors.HexColor("#1c1c1e")
 GREY_TEXT    = colors.HexColor("#6b7280")
 WHITE        = colors.white
 
 
+# ── Font registration ─────────────────────────────────────────────────────────
+# Nirmala UI ships with Windows 8+ and supports Kannada, Devanagari, and
+# most Unicode ranges needed for this project.
+_NIRMALA_PATH      = "C:/Windows/Fonts/Nirmala.ttf"
+_NIRMALA_BOLD_PATH = "C:/Windows/Fonts/NirmalaB.ttf"
+_FONTS_REGISTERED  = False
+
+
+def _ensure_fonts():
+    global _FONTS_REGISTERED
+    if _FONTS_REGISTERED:
+        return
+    if os.path.exists(_NIRMALA_PATH):
+        pdfmetrics.registerFont(TTFont("Nirmala",     _NIRMALA_PATH))
+        pdfmetrics.registerFont(TTFont("NirmalaB",    _NIRMALA_BOLD_PATH))
+        pdfmetrics.registerFontFamily("Nirmala", normal="Nirmala", bold="NirmalaB")
+    _FONTS_REGISTERED = True
+
+
+def _font(bold=False):
+    """Return best available font name (Nirmala > Helvetica fallback)."""
+    if os.path.exists(_NIRMALA_PATH):
+        return "NirmalaB" if bold else "Nirmala"
+    return "Helvetica-Bold" if bold else "Helvetica"
+
+
 def _build_styles():
+    _ensure_fonts()
     base = getSampleStyleSheet()
+    F  = _font(bold=False)
+    FB = _font(bold=True)
 
     header_title = ParagraphStyle(
         "HeaderTitle",
         parent=base["Normal"],
-        fontSize=22,
+        fontSize=20,
         textColor=WHITE,
-        fontName="Helvetica-Bold",
+        fontName=FB,
         alignment=TA_CENTER,
         spaceAfter=2,
+        leading=26,
     )
     header_sub = ParagraphStyle(
         "HeaderSub",
         parent=base["Normal"],
         fontSize=10,
         textColor=colors.HexColor("#b7e4c7"),
-        fontName="Helvetica",
+        fontName=F,
         alignment=TA_CENTER,
         spaceAfter=0,
+        leading=14,
     )
     section_title = ParagraphStyle(
         "SectionTitle",
         parent=base["Normal"],
-        fontSize=12,
+        fontSize=11,
         textColor=DARK_GREEN,
-        fontName="Helvetica-Bold",
-        spaceBefore=10,
-        spaceAfter=4,
+        fontName=FB,
+        spaceBefore=8,
+        spaceAfter=3,
+        leading=16,
     )
     body = ParagraphStyle(
         "Body",
         parent=base["Normal"],
         fontSize=10,
         textColor=DARK_TEXT,
-        fontName="Helvetica",
-        leading=15,
-        spaceAfter=4,
+        fontName=F,
+        leading=16,
+        spaceAfter=3,
     )
     bullet = ParagraphStyle(
         "Bullet",
         parent=base["Normal"],
         fontSize=10,
         textColor=DARK_TEXT,
-        fontName="Helvetica",
-        leading=15,
-        leftIndent=12,
-        spaceAfter=3,
+        fontName=F,
+        leading=16,
+        leftIndent=10,
+        spaceAfter=2,
     )
     label = ParagraphStyle(
         "Label",
         parent=base["Normal"],
-        fontSize=9,
+        fontSize=8,
         textColor=GREY_TEXT,
-        fontName="Helvetica",
+        fontName=F,
+        leading=12,
     )
     value = ParagraphStyle(
         "Value",
         parent=base["Normal"],
         fontSize=10,
         textColor=DARK_TEXT,
-        fontName="Helvetica-Bold",
+        fontName=FB,
+        leading=14,
     )
     footer_style = ParagraphStyle(
         "Footer",
         parent=base["Normal"],
         fontSize=8,
         textColor=GREY_TEXT,
-        fontName="Helvetica",
+        fontName=F,
         alignment=TA_CENTER,
+        leading=12,
     )
     return {
         "header_title": header_title,
-        "header_sub": header_sub,
+        "header_sub":   header_sub,
         "section_title": section_title,
-        "body": body,
-        "bullet": bullet,
-        "label": label,
-        "value": value,
-        "footer": footer_style,
+        "body":         body,
+        "bullet":       bullet,
+        "label":        label,
+        "value":        value,
+        "footer":       footer_style,
     }
 
 
@@ -132,8 +167,13 @@ def generate_summary_pdf(summary: dict, user: dict, jurisdiction: dict | None) -
     -------
     str — absolute path to the generated PDF temp file
     """
+    _ensure_fonts()
+
     tmp_fd, pdf_path = tempfile.mkstemp(suffix=".pdf", prefix="sahakar_summary_")
     os.close(tmp_fd)
+
+    PAGE_W = A4[0]
+    CONTENT_W = PAGE_W - 40 * mm   # 20 mm margins each side
 
     doc = SimpleDocTemplate(
         pdf_path,
@@ -147,103 +187,116 @@ def generate_summary_pdf(summary: dict, user: dict, jurisdiction: dict | None) -
     )
 
     styles = _build_styles()
-    story = []
+    story  = []
 
     # ── HEADER BAND ──────────────────────────────────────────────────────────
     now_str = datetime.now().strftime("%d %B %Y, %I:%M %p")
 
-    header_data = [[
-        Paragraph("🌾 SAHAKAR SEVA TERMINAL", styles["header_title"]),
-    ]]
-    sub_data = [[
-        Paragraph(f"Session Summary  •  {now_str}", styles["header_sub"]),
-    ]]
-
-    header_table = Table(header_data, colWidths=[170 * mm])
+    header_table = Table(
+        [[Paragraph("SAHAKAR SEVA TERMINAL", styles["header_title"])]],
+        colWidths=[CONTENT_W],
+    )
     header_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), DARK_GREEN),
+        ("BACKGROUND",    (0, 0), (-1, -1), DARK_GREEN),
         ("TOPPADDING",    (0, 0), (-1, -1), 14),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
     ]))
 
-    sub_table = Table(sub_data, colWidths=[170 * mm])
+    sub_table = Table(
+        [[Paragraph(f"Session Summary  |  {now_str}", styles["header_sub"])]],
+        colWidths=[CONTENT_W],
+    )
     sub_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), MID_GREEN),
-        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BACKGROUND",    (0, 0), (-1, -1), MID_GREEN),
+        ("TOPPADDING",    (0, 0), (-1, -1), 5),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
     ]))
 
-    story.extend([header_table, sub_table, Spacer(1, 8 * mm)])
+    story.extend([header_table, sub_table, Spacer(1, 6 * mm)])
 
     # ── USER INFO BLOCK ──────────────────────────────────────────────────────
-    occ_emoji = {"Farmer": "🌾", "Artisan": "🔨", "Landless Labourer": "👷"}.get(
-        user.get("occupation", ""), "👤"
-    )
+    occ_label = {
+        "Farmer": "Farmer / Raitha",
+        "Artisan": "Artisan / Kareegara",
+        "Landless Labourer": "Landless Labourer",
+    }.get(user.get("occupation", ""), user.get("occupation", "—"))
+
     land_str = (
         f"{user.get('land_acres')} acres" if user.get("land_acres") else "—"
     )
-    office_str = "—"
+    office_str  = "—"
     contact_str = "—"
     if jurisdiction:
         office_str = (
             f"{jurisdiction.get('office_name', '')} — "
             f"{jurisdiction.get('office_address', '')}"
-        )
+        ).strip(" —")
         contact_str = (
             f"{jurisdiction.get('nodal_officer', '')}  |  "
-            f"☎ {jurisdiction.get('phone', '')}"
-        )
+            f"Ph: {jurisdiction.get('phone', '')}"
+        ).strip("  | ")
+
+    # Column widths: label | value | label | value
+    LW = 30 * mm
+    VW = (CONTENT_W - 2 * LW) / 2
 
     user_rows = [
         [
-            Paragraph("Name / ಹೆಸರು", styles["label"]),
+            Paragraph("Name / Hesaru", styles["label"]),
             Paragraph(user.get("name", "—"), styles["value"]),
-            Paragraph("Occupation / ವೃತ್ತಿ", styles["label"]),
-            Paragraph(f"{occ_emoji} {user.get('occupation', '—')}", styles["value"]),
+            Paragraph("Occupation / Vutti", styles["label"]),
+            Paragraph(occ_label, styles["value"]),
         ],
         [
-            Paragraph("Village / ಗ್ರಾಮ", styles["label"]),
+            Paragraph("Village / Grama", styles["label"]),
             Paragraph(user.get("village", "—"), styles["value"]),
-            Paragraph("Land / ಜಮೀನು", styles["label"]),
+            Paragraph("Land / Jameen", styles["label"]),
             Paragraph(land_str, styles["value"]),
         ],
         [
-            Paragraph("Office / ಕಚೇರಿ", styles["label"]),
+            Paragraph("Office / Kacheri", styles["label"]),
             Paragraph(office_str, styles["value"]),
-            Paragraph("Contact / ಸಂಪರ್ಕ", styles["label"]),
+            Paragraph("Contact / Samparka", styles["label"]),
             Paragraph(contact_str, styles["value"]),
         ],
     ]
-    col_w = [28 * mm, 57 * mm, 28 * mm, 57 * mm]
-    user_table = Table(user_rows, colWidths=col_w)
+
+    user_table = Table(user_rows, colWidths=[LW, VW, LW, VW])
     user_table.setStyle(TableStyle([
-        ("BACKGROUND",    (0, 0), (-1, -1), LIGHT_GREEN),
-        ("TOPPADDING",    (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+        ("TOPPADDING",    (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 7),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 7),
         ("ROWBACKGROUNDS", (0, 0), (-1, -1), [LIGHT_GREEN, CREAM]),
-        ("BOX",    (0, 0), (-1, -1), 0.5, MID_GREEN),
-        ("INNERGRID", (0, 0), (-1, -1), 0.3, colors.HexColor("#b7e4c7")),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BOX",      (0, 0), (-1, -1), 0.6, MID_GREEN),
+        ("INNERGRID",(0, 0), (-1, -1), 0.3, colors.HexColor("#b7e4c7")),
+        ("VALIGN",   (0, 0), (-1, -1), "MIDDLE"),
+        ("SPAN",     (1, 2), (1, 2)),   # office value spans normally
     ]))
-    story.extend([user_table, Spacer(1, 6 * mm)])
+    story.extend([user_table, Spacer(1, 5 * mm)])
+
+    # ── HELPER: section header ────────────────────────────────────────────────
+    def section(title_en, title_kn=""):
+        heading = f"{title_en}" + (f"  /  {title_kn}" if title_kn else "")
+        story.append(Paragraph(heading, styles["section_title"]))
+        story.append(HRFlowable(
+            width="100%", thickness=1.5, color=AMBER,
+            spaceBefore=2, spaceAfter=5,
+        ))
 
     # ── MAIN ISSUE ───────────────────────────────────────────────────────────
     main_issue = summary.get("main_issue", "—")
-    story.append(Paragraph("▶ Main Issue / ಮುಖ್ಯ ಸಮಸ್ಯೆ", styles["section_title"]))
-    story.append(HRFlowable(width="100%", thickness=1, color=AMBER, spaceAfter=4))
+    section("Main Issue", "Mukhy Samasye")
     story.append(Paragraph(main_issue, styles["body"]))
     story.append(Spacer(1, 4 * mm))
 
     # ── QUESTIONS DISCUSSED ───────────────────────────────────────────────────
     questions = summary.get("questions_discussed", [])
-    story.append(Paragraph("❓ Questions Discussed / ಚರ್ಚಿಸಿದ ಪ್ರಶ್ನೆಗಳು", styles["section_title"]))
-    story.append(HRFlowable(width="100%", thickness=1, color=AMBER, spaceAfter=4))
+    section("Questions Discussed", "Charcha Maadida Prashne")
     if questions:
         for i, q in enumerate(questions, 1):
             story.append(Paragraph(f"{i}.  {q}", styles["bullet"]))
@@ -253,53 +306,55 @@ def generate_summary_pdf(summary: dict, user: dict, jurisdiction: dict | None) -
 
     # ── RECOMMENDED NEXT STEPS ───────────────────────────────────────────────
     next_steps = summary.get("recommended_next_steps", "—")
-    story.append(Paragraph("✅ Recommended Next Steps / ಮುಂದಿನ ಹಂತಗಳು", styles["section_title"]))
-    story.append(HRFlowable(width="100%", thickness=1, color=AMBER, spaceAfter=4))
+    section("Recommended Next Steps", "Mundina Hantegalu")
     story.append(Paragraph(next_steps, styles["body"]))
     story.append(Spacer(1, 4 * mm))
 
     # ── REQUIRED DOCUMENTS ───────────────────────────────────────────────────
     req_docs = summary.get("required_documents", [])
-    story.append(Paragraph("📄 Required Documents / ಅಗತ್ಯ ದಾಖಲೆಗಳು", styles["section_title"]))
-    story.append(HRFlowable(width="100%", thickness=1, color=AMBER, spaceAfter=4))
+    section("Required Documents", "Agatya Dakhalegalu")
     if req_docs:
         doc_rows = [[
-            Paragraph("☐", styles["body"]),
+            Paragraph("[ ]", styles["body"]),
             Paragraph(d, styles["body"]),
         ] for d in req_docs]
-        doc_table = Table(doc_rows, colWidths=[8 * mm, 162 * mm])
+        doc_table = Table(doc_rows, colWidths=[8 * mm, CONTENT_W - 8 * mm])
         doc_table.setStyle(TableStyle([
-            ("TOPPADDING",    (0, 0), (-1, -1), 3),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
             ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 4),
             ("VALIGN",        (0, 0), (-1, -1), "TOP"),
             ("ROWBACKGROUNDS", (0, 0), (-1, -1), [CREAM, WHITE]),
         ]))
         story.append(doc_table)
     else:
         story.append(Paragraph("No specific documents mentioned.", styles["body"]))
-    story.append(Spacer(1, 6 * mm))
+    story.append(Spacer(1, 5 * mm))
 
     # ── REFERENCE SCHEME ─────────────────────────────────────────────────────
     reference = summary.get("reference", "")
     if reference:
-        ref_data = [[Paragraph(f"Reference / ಉಲ್ಲೇಖ:  {reference}", styles["body"])]]
-        ref_table = Table(ref_data, colWidths=[170 * mm])
+        ref_data = [[Paragraph(f"Reference / Ullekhha:  {reference}", styles["body"])]]
+        ref_table = Table(ref_data, colWidths=[CONTENT_W])
         ref_table.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, -1), colors.HexColor("#fff3cd")),
-            ("BOX",           (0, 0), (-1, -1), 0.8, AMBER),
-            ("TOPPADDING",    (0, 0), (-1, -1), 6),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+            ("BOX",           (0, 0), (-1, -1), 1.0, AMBER),
+            ("TOPPADDING",    (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
         ]))
         story.append(ref_table)
         story.append(Spacer(1, 4 * mm))
 
     # ── FOOTER ───────────────────────────────────────────────────────────────
-    story.append(HRFlowable(width="100%", thickness=0.5, color=GREY_TEXT, spaceAfter=4))
+    story.append(HRFlowable(
+        width="100%", thickness=0.5, color=GREY_TEXT, spaceBefore=4, spaceAfter=4
+    ))
     story.append(Paragraph(
-        "Sahakar Seva Terminal  •  PACS Digital Kiosk  •  This is a computer-generated summary.",
-        styles["footer"]
+        "Sahakar Seva Terminal  |  PACS Digital Kiosk  |  Computer-generated summary",
+        styles["footer"],
     ))
 
     doc.build(story)
