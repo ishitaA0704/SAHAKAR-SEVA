@@ -1392,5 +1392,137 @@
       .replace(/\n/g, "<br>");
   }
 </script>
+
+<!-- Socket.IO client -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+
+<script>
+  // ── Kiosk Hardware Integration (SocketIO + Keyboard) ──────────────────────
+  const socket = io();
+
+  // Fingerprint scanner events pushed from the Python backend daemon
+  socket.on('user_authenticated', (data) => {
+    currentFingerprintId = data.fingerprint_id;
+    enterConversation(data.user);
+    showToast("✅ Login successful via scanner!");
+  });
+
+  socket.on('guest_fallback', (data) => {
+    showToast("⚠ " + data.message + " — Entering Guest Mode.", "warning", 5000);
+    currentFingerprintId = 9999999;
+    enterConversation({name: "Guest", occupation: "Farmer", village: "Unknown", land_acres: null});
+  });
+
+  // ── Hardware Audio Upload Listeners ──────────────────────────────────────
+  socket.on('hardware_interaction_start', (data) => {
+    if (data.query) {
+      addBubble("question", data.query);
+    }
+    setStatus("thinking");
+    document.getElementById("btnAsk").disabled = true;
+    document.getElementById("btnFinish").disabled = true;
+    scrollChat();
+  });
+
+  socket.on('hardware_interaction_complete', (data) => {
+    addAnswerBubble(data.answer, data.next_steps, data.reference);
+    setStatus("ready");
+    document.getElementById("btnAsk").disabled = false;
+    document.getElementById("btnFinish").disabled = false;
+    scrollChat();
+    // Audio playback disabled for prototype
+  });
+
+  function _encodeWAV(samples, sr) {
+    const buf = new ArrayBuffer(44 + samples.length * 2);
+    const v = new DataView(buf);
+    const ws = (off, str) => { for (let i = 0; i < str.length; i++) v.setUint8(off + i, str.charCodeAt(i)); };
+    ws(0,'RIFF'); v.setUint32(4, 36 + samples.length * 2, true);
+    ws(8,'WAVE'); ws(12,'fmt ');
+    v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+    v.setUint32(24,sr,true); v.setUint32(28,sr*2,true);
+    v.setUint16(32,2,true); v.setUint16(34,16,true);
+    ws(36,'data'); v.setUint32(40,samples.length*2,true);
+    let off=44;
+    for (let i=0;i<samples.length;i++,off+=2) {
+      const s=Math.max(-1,Math.min(1,samples[i]));
+      v.setInt16(off, s<0?s*0x8000:s*0x7FFF, true);
+    }
+    return new Blob([v], {type:'audio/wav'});
+  }
+
+  async function _sendMultimodalQuery(audioB64, imageB64) {
+    setStatus("thinking");
+    document.getElementById("btnAsk").disabled    = true;
+    document.getElementById("btnFinish").disabled = true;
+    try {
+      const res = await fetch("/process_interaction", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({
+          fingerprint_id: currentFingerprintId,
+          language: currentLang,
+          audio_data: audioB64,
+          image_data: imageB64
+        })
+      });
+      const data = await res.json();
+      if (data.status === "ok" && data.audio_response) {
+        addAnswerBubble(data.audio_response, "", "");
+        scrollChat();
+        if (data.tts_audio_url) {
+          new Audio(data.tts_audio_url).play().catch(()=>{});
+        } else if (data.tts_text) {
+          const utt = new SpeechSynthesisUtterance(data.tts_text);
+          utt.lang = currentLang==='kn'?'kn-IN':currentLang==='hi'?'hi-IN':'en-IN';
+          window.speechSynthesis.speak(utt);
+        }
+      } else {
+        addAnswerBubble("Could not process your request. Please try again.", "", "Error");
+        scrollChat();
+      }
+    } catch(e) {
+      addAnswerBubble("Connection error during voice query.", "", "Offline");
+      scrollChat();
+    } finally {
+      setStatus("ready");
+      document.getElementById("btnAsk").disabled    = false;
+      document.getElementById("btnFinish").disabled = false;
+    }
+  }
+
+  // Keyboard listeners for physical arcade buttons (via USB encoder)
+  window.addEventListener('keydown', (e) => {
+    if (e.repeat) return;
+    if (e.key === '1') { setLanguage('kn'); _playBeep(); }
+    else if (e.key === '2') { setLanguage('hi'); _playBeep(); }
+    else if (e.key === '3') { setLanguage('en'); _playBeep(); }
+    else if (e.key === 'Escape') {
+      fetch("/reset", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({fingerprint_id: currentFingerprintId})}).catch(()=>{});
+      window.speechSynthesis.cancel();
+      newSession();
+      _playBeep();
+    }
+    // Spacebar recording disabled here, managed by external_push_button.py instead!
+    // else if ((e.key===' '||e.code==='Space') && currentFingerprintId) { ... }
+  });
+
+  /* Spacebar keyup listener disabled 
+  window.addEventListener('keyup', (e) => {
+      // Handled by external hardware script
+  });
+  */
+
+  function _playBeep() {
+    try {
+      const ac = new (window.AudioContext||window.webkitAudioContext)();
+      const o  = ac.createOscillator();
+      o.connect(ac.destination);
+      o.frequency.value = 880;
+      o.start(); o.stop(ac.currentTime + 0.08);
+    } catch(e) {}
+  }
+</script>
 </body>
 </html>
