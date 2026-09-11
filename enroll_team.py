@@ -3,8 +3,8 @@ import time
 
 def enroll_team_member():
     try:
-        # Connect to your specific Windows port
-        f = PyFingerprint('COM12', 57600, 0xFFFFFFFF, 0x00000000)
+        # Connect to your specific Windows port (COM17 is the R307 scanner)
+        f = PyFingerprint('COM17', 57600, 0xFFFFFFFF, 0x00000000)
         if not f.verifyPassword():
             raise ValueError('Could not connect to the R307')
     except Exception as e:

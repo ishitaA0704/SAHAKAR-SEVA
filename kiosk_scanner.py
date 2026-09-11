@@ -3,7 +3,7 @@ import database  # This imports Ishita's database.py file!
 
 def run_kiosk():
     try:
-        f = PyFingerprint('COM12', 57600, 0xFFFFFFFF, 0x00000000)
+        f = PyFingerprint('COM17', 57600, 0xFFFFFFFF, 0x00000000)
         if not f.verifyPassword():
             raise ValueError('Could not connect to the R307')
     except Exception as e:
