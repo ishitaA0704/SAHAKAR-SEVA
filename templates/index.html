@@ -920,7 +920,7 @@
       </button>
     </div>
     <button class="btn-finish" id="btnFinish" onclick="finishSession()" aria-label="Finish session and get summary">
-      ✅ &nbsp;<span data-i18n="finish_btn">Finish Session &amp; Get Summary &nbsp;·&nbsp; ಸೆಷನ್ ಮುಗಿಸಿ ಸಾರಾಂಶ ಪಡೆಯಿರಿ</span>
+      🎙️ &nbsp;<span data-i18n="finish_btn">Say "Print Receipt" or "Exit" to finish</span>
     </button>
   </div>
 
@@ -1008,7 +1008,7 @@
       idle_subtitle: "Select a demo persona below to simulate fingerprint authentication",
       demo_label: "Demo Personas",
       ask_btn: "Ask",
-      finish_btn: "Finish Session & Get Summary",
+      finish_btn: 'Say "Print Receipt" or "Exit" to finish',
       query_placeholder: "Type your question…",
       err_title: "⚠ Not Registered",
       err_body: "This fingerprint is not in the system. Please visit your nearest PACS office to register."
@@ -1019,7 +1019,7 @@
       idle_subtitle: "फिंगरप्रिंट प्रमाणीकरण का अनुकरण करने के लिए नीचे एक डेमो व्यक्ति चुनें",
       demo_label: "डेमो उपयोगकर्ता",
       ask_btn: "पूछें",
-      finish_btn: "सत्र समाप्त करें और सारांश प्राप्त करें",
+      finish_btn: 'समाप्त करने के लिए "प्रिंट करें" या "बाहर निकलें" बोलें',
       query_placeholder: "अपना प्रश्न लिखें…",
       err_title: "⚠ पंजीकृत नहीं है",
       err_body: "यह फिंगरप्रिंट सिस्टम में नहीं है। कृपया पंजीकरण के लिए अपने निकटतम पीएसीएस कार्यालय जाएँ।"
@@ -1030,7 +1030,7 @@
       idle_subtitle: "ಕೆಳಗಿನ ಬಳಕೆದಾರರನ್ನು ಆಯ್ಕೆ ಮಾಡಿ",
       demo_label: "ಡೆಮೋ ಬಳಕೆದಾರರು",
       ask_btn: "ಕೇಳಿ",
-      finish_btn: "ಸೆಷನ್ ಮುಗಿಸಿ ಸಾರಾಂಶ ಪಡೆಯಿರಿ",
+      finish_btn: 'ಮುಗಿಸಲು "ಪ್ರಿಂಟ್" ಅಥವಾ "ಮುಗಿಸಿ" ಎಂದು ಹೇಳಿ',
       query_placeholder: "ನಿಮ್ಮ ಪ್ರಶ್ನೆ ಬರೆಯಿರಿ…",
       err_title: "⚠ ನೋಂದಾಯಿಸಲಾಗಿಲ್ಲ",
       err_body: "ಈ ಬೆರಳಚ್ಚು ವ್ಯವಸ್ಥೆಯಲ್ಲಿ ನೋಂದಣಿಯಾಗಿಲ್ಲ. ದಯವಿಟ್ಟು ನೋಂದಾಯಿಸಲು ಹತ್ತಿರದ PACS ಕಚೇರಿಗೆ ಭೇಟಿ ನೀಡಿ."
@@ -1201,6 +1201,16 @@
 
       if (data.status === "ok") {
         addAnswerBubble(data.answer, data.next_steps, data.reference);
+        if (data.end_session) {
+          finishSession().then(() => {
+            if (data.print_summary) {
+              printSummary();
+            }
+            setTimeout(() => {
+              newSession();
+            }, 12000);
+          });
+        }
       }
     } catch (err) {
       addAnswerBubble(
@@ -1351,7 +1361,7 @@
     btn.innerHTML = `⏳ Printing… / ಮುದ್ರಿಸಲಾಗುತ್ತಿದೆ… <span class="btn-kn">Please wait</span>`;
 
     try {
-      const res  = await fetch("/print_summary", {
+      const res  = await fetch("/generate_pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1412,6 +1422,9 @@
   // Fingerprint scanner events pushed from the Python backend daemon
   socket.on('user_authenticated', (data) => {
     currentFingerprintId = data.fingerprint_id;
+    // CRITICAL: Reset backend session so old conversations/states don't bleed in!
+    fetch("/reset", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({fingerprint_id: currentFingerprintId})}).catch(()=>{});
     enterConversation(data.user);
     showToast("✅ Login successful via scanner!");
   });
@@ -1419,6 +1432,9 @@
   socket.on('guest_fallback', (data) => {
     showToast("⚠ " + data.message + " — Entering Guest Mode.", "warning", 5000);
     currentFingerprintId = 9999999;
+    // CRITICAL: Reset backend session for guest too
+    fetch("/reset", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({fingerprint_id: currentFingerprintId})}).catch(()=>{});
     enterConversation({name: "Guest", occupation: "Farmer", village: "Unknown", land_acres: null});
   });
 
@@ -1428,8 +1444,30 @@
     showToast("Language changed to: " + data.language.toUpperCase(), "info");
   });
 
+  let currentAudio = null;
+
+  function stopAudio() {
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    }
+    window.speechSynthesis.cancel();
+  }
+
+  function playAudio(url) {
+    stopAudio();
+    if (!url) return;
+    try {
+      currentAudio = new Audio(url);
+      currentAudio.play().catch(e => console.error("Audio autoplay blocked:", e));
+    } catch (err) {
+      console.error("Audio playback error:", err);
+    }
+  }
+
   socket.on('recording_status', (data) => {
     if (data.status === "started") {
+      stopAudio(); // Stop TTS if user interrupts by speaking
       setStatus("recording");
     } else if (data.status === "stopped") {
       setStatus("thinking");
@@ -1456,14 +1494,20 @@
     
     // Play the Bhashini TTS Audio
     if (data.tts_audio_url) {
-      try {
-        const audio = new Audio(data.tts_audio_url);
-        audio.play().catch(e => console.error("Audio autoplay blocked by browser:", e));
-      } catch (err) {
-        console.error("Audio playback error:", err);
-      }
+      playAudio(data.tts_audio_url);
     }
     
+    if (data.end_session) {
+      finishSession().then(() => {
+        if (data.print_summary) {
+          printSummary();
+        }
+        setTimeout(() => {
+          newSession();
+        }, 12000);
+      });
+    }
+
     // If this was the final Yes/No print confirmation
     if (data.is_final) {
        setTimeout(() => {
@@ -1479,11 +1523,18 @@
     showScreen("screen-summary");
     
     if (data.tts_audio_url) {
-      try {
-        const audio = new Audio(data.tts_audio_url);
-        audio.play().catch(e => console.error("Audio autoplay blocked:", e));
-      } catch (err) {}
+      playAudio(data.tts_audio_url);
     }
+  });
+
+  // ── Bhashini Offline Warning ──────────────────────────────────────────────
+  socket.on('bhashini_offline_warning', (data) => {
+    // currentLang is the global JS variable tracking the active language
+    let msg = data.message;
+    if (currentLang === 'kn' && data.message_kn) msg = data.message_kn;
+    else if (currentLang === 'hi' && data.message_hi) msg = data.message_hi;
+    showToast(msg, "warning", 7000);
+    console.warn("[Bhashini] Offline warning received:", data.message);
   });
 
   function _encodeWAV(samples, sr) {
@@ -1524,11 +1575,22 @@
         addAnswerBubble(data.audio_response, "", "");
         scrollChat();
         if (data.tts_audio_url) {
-          new Audio(data.tts_audio_url).play().catch(()=>{});
+          playAudio(data.tts_audio_url);
         } else if (data.tts_text) {
           const utt = new SpeechSynthesisUtterance(data.tts_text);
           utt.lang = currentLang==='kn'?'kn-IN':currentLang==='hi'?'hi-IN':'en-IN';
           window.speechSynthesis.speak(utt);
+        }
+        
+        if (data.end_session) {
+          finishSession().then(() => {
+            if (data.print_summary) {
+              printSummary();
+            }
+            setTimeout(() => {
+              newSession();
+            }, 12000);
+          });
         }
       } else {
         addAnswerBubble("Could not process your request. Please try again.", "", "Error");

@@ -193,7 +193,7 @@ def generate_summary_pdf(summary: dict, user: dict, jurisdiction: dict | None) -
     now_str = datetime.now().strftime("%d %B %Y, %I:%M %p")
 
     header_table = Table(
-        [[Paragraph("SAHAKAR SEVA TERMINAL", styles["header_title"])]],
+        [[Paragraph("Kiosk Session Summary", styles["header_title"])]],
         colWidths=[CONTENT_W],
     )
     header_table.setStyle(TableStyle([
@@ -361,43 +361,53 @@ def generate_summary_pdf(summary: dict, user: dict, jurisdiction: dict | None) -
     return pdf_path
 
 
-def silent_print(pdf_path: str) -> tuple[bool, str]:
+def silent_print(pdf_path: str) -> tuple[bool, str, str]:
     """
-    Send *pdf_path* to the default Windows printer with no dialog.
-
-    Uses win32api.ShellExecute with the "print" verb, which sends the PDF
-    directly to the default printer via the system's registered PDF handler
-    (Adobe Reader, Edge, etc.).  No dialog window is shown when the handler
-    supports silent printing.
-
-    Returns (success: bool, message: str).
+    Send *pdf_path* to the default Windows printer silently.
+    Returns (success: bool, status_code: str, message: str).
     """
     try:
         import win32api
         import win32con
+        import win32print
+        
+        try:
+            printer_name = win32print.GetDefaultPrinter()
+        except Exception:
+            return False, "pdf_only", "No default printer found."
 
-        # ShellExecute verb "print" triggers silent print via default handler
         ret = win32api.ShellExecute(
             0,               # hwnd
-            "print",         # verb
+            "printto",       # verb
             pdf_path,        # file
-            None,            # params
+            f'"{printer_name}"', # params
             ".",             # working dir
             win32con.SW_HIDE # show — hide any window that might open
         )
-        # ShellExecute returns > 32 on success
+        
+        if ret <= 32:
+            # Fallback
+            ret = win32api.ShellExecute(
+                0,
+                "print",
+                pdf_path,
+                None,
+                ".",
+                win32con.SW_HIDE
+            )
+
         if ret > 32:
-            return True, "Print job sent successfully."
+            return True, "printed", "Print job sent successfully."
         else:
-            return False, f"ShellExecute returned error code {ret}."
+            return False, "print_error", f"ShellExecute returned error code {ret}."
 
     except ImportError:
-        return False, (
+        return False, "print_error", (
             "pywin32 is not installed. "
             "Run: pip install pywin32"
         )
     except Exception as exc:
-        return False, f"Print error: {exc}"
+        return False, "print_error", f"Print error: {exc}"
 
 
 def generate_and_print(summary: dict, user: dict, jurisdiction: dict | None) -> dict:
@@ -410,9 +420,5 @@ def generate_and_print(summary: dict, user: dict, jurisdiction: dict | None) -> 
     except Exception as exc:
         return {"status": "error", "message": f"PDF generation failed: {exc}"}
 
-    success, message = silent_print(pdf_path)
-    if success:
-        return {"status": "printed", "message": message, "pdf_path": pdf_path}
-    else:
-        # Even if printing failed, return the path so the frontend can offer download
-        return {"status": "print_error", "message": message, "pdf_path": pdf_path}
+    success, status_code, message = silent_print(pdf_path)
+    return {"status": status_code, "message": message, "pdf_path": pdf_path}

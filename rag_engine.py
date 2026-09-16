@@ -30,23 +30,44 @@ def load_knowledge_for_occupation(occupation):
     return combined_text
 
 
-def fallback_regex_engine(image_text, user_occupation):
-    """Basic offline fallback when cloud API is unreachable."""
-    text = (image_text or "").upper()
-    if "REJECTED" in text:
-        return {
-            "audio_response": "Your application shows as rejected. Please check the printed receipt and visit counter 3.",
-            "printed_receipt": {"status": "REJECTED", "reference": "ERR-701", "instruction": "Visit Counter 3"}
+def ollama_fallback_engine(system_instruction, user_prompt, default_fallback, schema_reminder=None):
+    """Call local Ollama instance for offline fallback."""
+    url = "http://127.0.0.1:11434/api/generate"
+    
+    if not schema_reminder:
+        schema_reminder = """
+    
+CRITICAL: You MUST answer the user's question using the scheme rules above.
+Respond ONLY with a JSON object exactly matching this schema:
+{
+  "audio_response": "Your answer to the user in the target language.",
+  "end_session": false,
+  "print_summary": false,
+  "printed_receipt": {}
+}"""
+    
+    # llama3.2:3b is ~3x faster than llama3.1 on CPU (~8-12s on i7)
+    payload = {
+        "model": "llama3.2:3b",
+        "system": system_instruction,
+        "prompt": user_prompt + "\n\n" + schema_reminder,
+        "format": "json",
+        "stream": False,
+        "options": {
+            "num_ctx": 8192,
+            "temperature": 0.0,
+            "top_k": 5
         }
-    elif "FERTILIZER" in text or "FERTILISER" in text:
-        return {
-            "audio_response": "Your fertilizer subsidy is approved. Please collect it from the warehouse using this receipt.",
-            "printed_receipt": {"status": "APPROVED", "item": "Fertilizer Subsidy", "warehouse_zone": "A"}
-        }
-    return {
-        "audio_response": "Offline mode is active. Please hand your document to the clerk for manual assistance.",
-        "printed_receipt": {"status": "OFFLINE", "instruction": "Manual Review Required"}
     }
+    
+    try:
+        # 60 seconds is sufficient for llama3.2:3b on CPU (typically 8-15s)
+        response = requests.post(url, json=payload, timeout=90)
+        response.raise_for_status()
+        return response.json().get("response", "")
+    except Exception as e:
+        print(f"Ollama local fallback failed: {e}")
+        return json.dumps(default_fallback)
 
 
 def get_ai_answer(context, api_key, language="en", query_text="", image_b64=""):
@@ -55,8 +76,7 @@ def get_ai_answer(context, api_key, language="en", query_text="", image_b64=""):
     Returns a JSON string with keys: audio_response, printed_receipt.
     """
     if not api_key:
-        print("ERROR: GEMINI_API_KEY is not set. Returning offline fallback.")
-        return json.dumps(fallback_regex_engine("", context["user"].get("occupation", "")))
+        print("WARNING: GEMINI_API_KEY is not set. Will attempt local Ollama fallback.")
 
     knowledge = load_knowledge_for_occupation(context["user"]["occupation"])
 
@@ -82,9 +102,18 @@ CRITICAL RULE: Do NOT greet the user by name, and do NOT mention their location 
 
 If the question is unrelated to cooperative/agricultural/government scheme matters, politely decline in {lang_name}.
 
+SESSION MANAGEMENT RULES:
+- "end_session": boolean, "print_summary": boolean.
+- Default to "end_session": false and "print_summary": false for almost all questions.
+- ONLY set "end_session": true if the user EXPLICITLY and UNAMBIGUOUSLY states they are leaving, want to end the chat, or says goodbye.
+- ONLY set "print_summary": true if the user EXPLICITLY commands the kiosk to print a receipt of the current conversation (e.g., "print this receipt", "give me a printout of our chat").
+- CRITICAL: If the user asks a question about how to print scheme documents or forms (e.g., "can I print the application?"), they are asking a question, NOT ending the session. Set both to false and answer normally.
+
 Respond ONLY with valid JSON in this exact schema — no extra text:
 {{
   "audio_response": "...",
+  "end_session": false,
+  "print_summary": false,
   "printed_receipt": {{
     "amounts": "...",
     "account_info": "...",
@@ -117,41 +146,57 @@ Respond ONLY with valid JSON in this exact schema — no extra text:
     }
 
     import time
-    for model_url in models_to_try:
-        retries = 3
-        while retries > 0:
-            try:
-                response = requests.post(
-                    model_url,
-                    params={"key": api_key},
-                    json=request_body,
-                    timeout=30
-                )
-                if response.status_code == 429:
-                    # Try to extract exact retry delay, otherwise default to 15s
-                    delay = 15
-                    try:
-                        err_data = response.json()
-                        details = err_data.get("error", {}).get("details", [])
-                        for d in details:
-                            if "retryDelay" in d:
-                                delay = int(d["retryDelay"].replace("s","")) + 1
-                    except: pass
-                    print(f"Model {model_url.split('/')[-1]} rate-limited. Retrying in {delay}s...")
-                    time.sleep(delay)
-                    retries -= 1
-                    continue
-                response.raise_for_status()
-                return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception as e:
-                if getattr(e, 'response', None) is not None and e.response.status_code == 429:
-                    pass # Handled above
-                else:
-                    print(f"Model {model_url.split('/')[-1]} failed: {e}.")
-                    break
+    if api_key:
+        for model_url in models_to_try:
+            retries = 3
+            while retries > 0:
+                try:
+                    response = requests.post(
+                        model_url,
+                        params={"key": api_key},
+                        json=request_body,
+                        timeout=30
+                    )
+                    if response.status_code == 429:
+                        # Try to extract exact retry delay, otherwise default to 15s
+                        delay = 15
+                        try:
+                            err_data = response.json()
+                            details = err_data.get("error", {}).get("details", [])
+                            for d in details:
+                                if "retryDelay" in d:
+                                    delay = int(d["retryDelay"].replace("s","")) + 1
+                        except: pass
+                        print(f"Model {model_url.split('/')[-1]} rate-limited. Retrying in {delay}s...")
+                        time.sleep(delay)
+                        retries -= 1
+                        continue
+                    response.raise_for_status()
+                    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+                except Exception as e:
+                    if getattr(e, 'response', None) is not None and e.response.status_code == 429:
+                        pass # Handled above
+                    else:
+                        print(f"Model {model_url.split('/')[-1]} failed: {e}.")
+                        break
 
-    print(f"All Gemini models failed/rate-limited — using offline regex fallback.")
-    return json.dumps(fallback_regex_engine("", context["user"].get("occupation", "")))
+    print(f"Using local Ollama fallback for answer.")
+    default_fallback = {
+        "audio_response": "Offline mode is active. Please hand your document to the clerk for manual assistance.",
+        "printed_receipt": {"status": "OFFLINE", "instruction": "Manual Review Required"}
+    }
+    
+    chat_schema_reminder = f"""
+CRITICAL: You MUST write ALL JSON string values in {lang_name} ({script_name}). Do not use any other language!
+If the user EXPLICITLY asks to exit, say goodbye, or print a receipt (e.g. "exit", "finish", "print receipt"), set "end_session": true. Otherwise it MUST be false.
+Respond ONLY with a JSON object exactly matching this schema:
+{{
+  "audio_response": "Your answer to the user in {lang_name}.",
+  "end_session": false,
+  "print_summary": false,
+  "printed_receipt": {{}}
+}}"""
+    return ollama_fallback_engine(system_instruction, user_prompt, default_fallback, schema_reminder=chat_schema_reminder)
 
 
 def get_session_summary(context, conversation_history, api_key, language="en"):
@@ -159,13 +204,7 @@ def get_session_summary(context, conversation_history, api_key, language="en"):
     Produce a structured session summary using the full Q&A history.
     """
     if not api_key:
-        return json.dumps({
-            "main_issue": "API key not configured. Summary unavailable.",
-            "questions_discussed": [],
-            "recommended_next_steps": "Please visit your nearest cooperative office.",
-            "required_documents": [],
-            "reference": "Offline"
-        })
+        print("WARNING: GEMINI_API_KEY is not set. Will attempt local Ollama fallback for summary.")
 
     knowledge = load_knowledge_for_occupation(context["user"]["occupation"])
 
@@ -206,42 +245,57 @@ def get_session_summary(context, conversation_history, api_key, language="en"):
     }
 
     import time
-    for model_url in models_to_try:
-        retries = 3
-        while retries > 0:
-            try:
-                response = requests.post(
-                    model_url,
-                    params={"key": api_key},
-                    json=request_body,
-                    timeout=30
-                )
-                if response.status_code == 429:
-                    delay = 15
-                    try:
-                        err_data = response.json()
-                        details = err_data.get("error", {}).get("details", [])
-                        for d in details:
-                            if "retryDelay" in d:
-                                delay = int(d["retryDelay"].replace("s","")) + 1
-                    except: pass
-                    print(f"Summary: Model {model_url.split('/')[-1]} rate-limited. Retrying in {delay}s...")
-                    time.sleep(delay)
-                    retries -= 1
-                    continue
-                response.raise_for_status()
-                return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-            except Exception as e:
-                if getattr(e, 'response', None) is not None and e.response.status_code == 429:
-                    pass
-                else:
-                    print(f"Model {model_url.split('/')[-1]} failed: {e}.")
-                    break
+    if api_key:
+        for model_url in models_to_try:
+            retries = 3
+            while retries > 0:
+                try:
+                    response = requests.post(
+                        model_url,
+                        params={"key": api_key},
+                        json=request_body,
+                        timeout=30
+                    )
+                    if response.status_code == 429:
+                        delay = 15
+                        try:
+                            err_data = response.json()
+                            details = err_data.get("error", {}).get("details", [])
+                            for d in details:
+                                if "retryDelay" in d:
+                                    delay = int(d["retryDelay"].replace("s","")) + 1
+                        except: pass
+                        print(f"Summary: Model {model_url.split('/')[-1]} rate-limited. Retrying in {delay}s...")
+                        time.sleep(delay)
+                        retries -= 1
+                        continue
+                    response.raise_for_status()
+                    return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+                except Exception as e:
+                    if getattr(e, 'response', None) is not None and e.response.status_code == 429:
+                        pass
+                    else:
+                        print(f"Model {model_url.split('/')[-1]} failed: {e}.")
+                        break
 
-    return json.dumps({
+    print(f"Using local Ollama fallback for summary.")
+    default_fallback = {
         "main_issue": "System offline. / ಸಿಸ್ಟಮ್ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿದೆ.",
         "questions_discussed": [],
         "recommended_next_steps": "Please try again later. / ದಯವಿಟ್ಟು ನಂತರ ಪ್ರಯತ್ನಿಸಿ.",
         "required_documents": [],
         "reference": "ERR-OFFLINE"
-    })
+    }
+    
+    summary_schema_reminder = f"""
+CRITICAL: You MUST write ALL JSON string values in {lang_name} ({script_name}). Do not use any other language!
+Respond ONLY with a JSON object exactly matching this schema:
+{{
+  "main_issue": "Short sentence summarizing the main problem in {lang_name}",
+  "questions_discussed": ["question 1", "question 2"],
+  "recommended_next_steps": "What the user should do next",
+  "required_documents": ["doc 1", "doc 2"],
+  "reference": "Any reference number or rule mentioned"
+}}"""
+    
+    return ollama_fallback_engine(system_instruction, user_prompt, default_fallback, schema_reminder=summary_schema_reminder)
