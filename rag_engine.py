@@ -78,6 +78,8 @@ PRIVACY RULE — split your answer into two channels:
 1. "audio_response": Safe, general guidance to be spoken aloud in public. NO financial amounts, account numbers, or private figures.
 2. "printed_receipt": Private details (amounts, account numbers, references) to be printed silently on paper.
 
+CRITICAL RULE: Do NOT greet the user by name, and do NOT mention their location or occupation in your response. Skip the pleasantries and answer the question directly and concisely.
+
 If the question is unrelated to cooperative/agricultural/government scheme matters, politely decline in {lang_name}.
 
 Respond ONLY with valid JSON in this exact schema — no extra text:
@@ -104,27 +106,49 @@ Respond ONLY with valid JSON in this exact schema — no extra text:
         parts.append({"inlineData": {"mimeType": "image/jpeg", "data": clean_b64}})
 
     models_to_try = [
-        "https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent",
-        "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent",
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
     ]
+    
+    request_body = {
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
+        "contents": [{"parts": parts}],
+        "generationConfig": {"responseMimeType": "application/json"}
+    }
 
+    import time
     for model_url in models_to_try:
-        try:
-            response = requests.post(
-                model_url,
-                params={"key": api_key},
-                json={
-                    "systemInstruction": {"parts": [{"text": system_instruction}]},
-                    "contents": [{"parts": parts}],
-                    "generationConfig": {"responseMimeType": "application/json"}
-                },
-                timeout=30
-            )
-            response.raise_for_status()
-            return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as e:
-            print(f"Model {model_url.split('/')[-1]} failed: {e}. Trying fallback model...")
+        retries = 3
+        while retries > 0:
+            try:
+                response = requests.post(
+                    model_url,
+                    params={"key": api_key},
+                    json=request_body,
+                    timeout=30
+                )
+                if response.status_code == 429:
+                    # Try to extract exact retry delay, otherwise default to 15s
+                    delay = 15
+                    try:
+                        err_data = response.json()
+                        details = err_data.get("error", {}).get("details", [])
+                        for d in details:
+                            if "retryDelay" in d:
+                                delay = int(d["retryDelay"].replace("s","")) + 1
+                    except: pass
+                    print(f"Model {model_url.split('/')[-1]} rate-limited. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    retries -= 1
+                    continue
+                response.raise_for_status()
+                return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception as e:
+                if getattr(e, 'response', None) is not None and e.response.status_code == 429:
+                    pass # Handled above
+                else:
+                    print(f"Model {model_url.split('/')[-1]} failed: {e}.")
+                    break
 
     print(f"All Gemini models failed/rate-limited — using offline regex fallback.")
     return json.dumps(fallback_regex_engine("", context["user"].get("occupation", "")))
@@ -171,32 +195,53 @@ def get_session_summary(context, conversation_history, api_key, language="en"):
     )
 
     models_to_try = [
-        "https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent",
-        "https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash-lite:generateContent",
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent"
     ]
+    
+    request_body = {
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
+        "contents": [{"parts": [{"text": user_prompt}]}],
+        "generationConfig": {"responseMimeType": "application/json"}
+    }
 
+    import time
     for model_url in models_to_try:
-        try:
-            response = requests.post(
-                model_url,
-                params={"key": api_key},
-                json={
-                    "systemInstruction": {"parts": [{"text": system_instruction}]},
-                    "contents": [{"parts": [{"text": user_prompt}]}],
-                    "generationConfig": {"responseMimeType": "application/json"}
-                },
-                timeout=30
-            )
-            response.raise_for_status()
-            return response.json()["candidates"][0]["content"]["parts"][0]["text"]
-        except Exception as e:
-            print(f"Summary Model {model_url.split('/')[-1]} failed: {e}. Trying fallback model...")
+        retries = 3
+        while retries > 0:
+            try:
+                response = requests.post(
+                    model_url,
+                    params={"key": api_key},
+                    json=request_body,
+                    timeout=30
+                )
+                if response.status_code == 429:
+                    delay = 15
+                    try:
+                        err_data = response.json()
+                        details = err_data.get("error", {}).get("details", [])
+                        for d in details:
+                            if "retryDelay" in d:
+                                delay = int(d["retryDelay"].replace("s","")) + 1
+                    except: pass
+                    print(f"Summary: Model {model_url.split('/')[-1]} rate-limited. Retrying in {delay}s...")
+                    time.sleep(delay)
+                    retries -= 1
+                    continue
+                response.raise_for_status()
+                return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+            except Exception as e:
+                if getattr(e, 'response', None) is not None and e.response.status_code == 429:
+                    pass
+                else:
+                    print(f"Model {model_url.split('/')[-1]} failed: {e}.")
+                    break
 
     return json.dumps({
-        "main_issue": "Session summary unavailable (Rate limit)",
+        "main_issue": "System offline. / ಸಿಸ್ಟಮ್ ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿದೆ.",
         "questions_discussed": [],
-        "recommended_next_steps": "Contact your local PACS office.",
+        "recommended_next_steps": "Please try again later. / ದಯವಿಟ್ಟು ನಂತರ ಪ್ರಯತ್ನಿಸಿ.",
         "required_documents": [],
-        "reference": "PACS-LOCAL-FALLBACK"
+        "reference": "ERR-OFFLINE"
     })

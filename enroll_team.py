@@ -1,14 +1,27 @@
 from pyfingerprint.pyfingerprint import PyFingerprint
 import time
 
+import serial.tools.list_ports
+
 def enroll_team_member():
-    try:
-        # Connect to your specific Windows port (COM17 is the R307 scanner)
-        f = PyFingerprint('COM17', 57600, 0xFFFFFFFF, 0x00000000)
-        if not f.verifyPassword():
-            raise ValueError('Could not connect to the R307')
-    except Exception as e:
-        print(f"Failed to connect: {e}")
+    print("Detecting fingerprint scanner...")
+    f = None
+    active_ports = [p.device for p in serial.tools.list_ports.comports()]
+    print(f"Found active COM ports: {active_ports}")
+    
+    for port in active_ports:
+        try:
+            print(f"Testing {port}...")
+            f_test = PyFingerprint(port, 57600, 0xFFFFFFFF, 0x00000000)
+            if f_test.verifyPassword():
+                f = f_test
+                print(f"✅ Connected to R307 Scanner on {port}!")
+                break
+        except Exception:
+            pass
+
+    if f is None:
+        print("❌ Could not connect to R307 fingerprint scanner on any port.")
         return
 
     print("--- PACS TEAM ENROLLMENT ---")

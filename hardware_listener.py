@@ -3,6 +3,8 @@ import threading
 from pyfingerprint.pyfingerprint import PyFingerprint
 import database
 
+import serial.tools.list_ports
+
 class HardwareListener:
     def __init__(self, socketio):
         self.socketio = socketio
@@ -10,15 +12,25 @@ class HardwareListener:
         self.thread = None
         self.strikes = 0
         self.current_user_id = 14 # Default fallback to Ramesh if no scan happens
-        try:
-            # Connect to R307 scanner
-            self.f = PyFingerprint('COM17', 57600, 0xFFFFFFFF, 0x00000000)
-            if not self.f.verifyPassword():
-                print("HardwareListener: Could not connect to R307 password.")
-                self.f = None
-        except Exception as e:
-            print(f"HardwareListener: Scanner connection failed: {e}")
-            self.f = None
+        self.f = None
+        
+        # Auto-detect COM port using only ACTIVE system ports
+        active_ports = [p.device for p in serial.tools.list_ports.comports()]
+        print(f"HardwareListener: Found active COM ports: {active_ports}")
+        
+        for port in active_ports:
+            try:
+                print(f"HardwareListener: Testing scanner on {port}...")
+                f_test = PyFingerprint(port, 57600, 0xFFFFFFFF, 0x00000000)
+                if f_test.verifyPassword():
+                    self.f = f_test
+                    print(f"✅ HardwareListener: Scanner auto-connected on {port}")
+                    break
+            except Exception:
+                pass
+                
+        if self.f is None:
+            print("❌ HardwareListener: Scanner connection failed on all ports.")
 
     def start(self):
         self.running = True

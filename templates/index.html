@@ -392,6 +392,7 @@
     }
     .status-strip.ready    { color: var(--green-400); }
     .status-strip.thinking { color: var(--amber); background: rgba(245,166,35,0.06); }
+    .status-strip.recording { color: #ff4d4f; background: rgba(255,77,79,0.1); }
     .status-dot {
       width: 10px; height: 10px;
       border-radius: 50%;
@@ -400,6 +401,10 @@
     .status-strip.thinking .status-dot {
       background: var(--amber);
       animation: blink 0.8s ease-in-out infinite;
+    }
+    .status-strip.recording .status-dot {
+      background: #ff4d4f;
+      animation: blink 0.5s ease-in-out infinite;
     }
     @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
 
@@ -1084,16 +1089,20 @@
   }
 
   /* ── Set status (conversation screen) ───────────────────────────────── */
-  function setStatus(state) {  // 'ready' | 'thinking'
+  function setStatus(state) {  // 'ready' | 'thinking' | 'recording'
     const strip = document.getElementById("statusStrip");
     const txt   = document.getElementById("statusText");
     strip.className = `status-strip ${state}`;
     if (state === "ready") {
       txt.textContent = "Ready to help · ಸಹಾಯ ಮಾಡಲು ಸಿದ್ಧ";
-    } else {
+      document.getElementById("thinkingBubble").classList.remove("visible");
+    } else if (state === "thinking") {
       txt.textContent = "Thinking… · ಯೋಚಿಸುತ್ತಿದೆ…";
+      document.getElementById("thinkingBubble").classList.add("visible");
+    } else if (state === "recording") {
+      txt.textContent = "🎙 Recording... Please speak · ರೆಕಾರ್ಡ್ ಆಗುತ್ತಿದೆ...";
+      document.getElementById("thinkingBubble").classList.remove("visible");
     }
-    document.getElementById("thinkingBubble").classList.toggle("visible", state === "thinking");
   }
 
   /* ── Authenticate ───────────────────────────────────────────────────── */
@@ -1413,6 +1422,20 @@
     enterConversation({name: "Guest", occupation: "Farmer", village: "Unknown", land_acres: null});
   });
 
+  // ── Real-Time Hardware Events ────────────────────────────────────────────
+  socket.on('language_changed', (data) => {
+    setLanguage(data.language);
+    showToast("Language changed to: " + data.language.toUpperCase(), "info");
+  });
+
+  socket.on('recording_status', (data) => {
+    if (data.status === "started") {
+      setStatus("recording");
+    } else if (data.status === "stopped") {
+      setStatus("thinking");
+    }
+  });
+
   // ── Hardware Audio Upload Listeners ──────────────────────────────────────
   socket.on('hardware_interaction_start', (data) => {
     if (data.query) {
@@ -1430,7 +1453,37 @@
     document.getElementById("btnAsk").disabled = false;
     document.getElementById("btnFinish").disabled = false;
     scrollChat();
-    // Audio playback disabled for prototype
+    
+    // Play the Bhashini TTS Audio
+    if (data.tts_audio_url) {
+      try {
+        const audio = new Audio(data.tts_audio_url);
+        audio.play().catch(e => console.error("Audio autoplay blocked by browser:", e));
+      } catch (err) {
+        console.error("Audio playback error:", err);
+      }
+    }
+    
+    // If this was the final Yes/No print confirmation
+    if (data.is_final) {
+       setTimeout(() => {
+           // Return to main screen
+           newSession();
+       }, 5000);
+    }
+  });
+
+  socket.on('hardware_show_summary', (data) => {
+    currentSummary = data.summary;
+    renderSummary(currentSummary);
+    showScreen("screen-summary");
+    
+    if (data.tts_audio_url) {
+      try {
+        const audio = new Audio(data.tts_audio_url);
+        audio.play().catch(e => console.error("Audio autoplay blocked:", e));
+      } catch (err) {}
+    }
   });
 
   function _encodeWAV(samples, sr) {

@@ -208,42 +208,143 @@ def process_interaction():
     })
 
 
+session_states = {}  # {fingerprint_id: "chatting" | "waiting_for_print"}
+
+@app.route("/hardware_finish_session", methods=["POST"])
+def hardware_finish_session():
+    """Triggered by ESC key on the hardware client."""
+    fingerprint_id = getattr(hw_listener, 'current_user_id', 14)
+    language = request.form.get("language", "en")
+    context = build_context(fingerprint_id, "", "")
+    
+    if fingerprint_id not in conversations or not conversations[fingerprint_id]:
+        return jsonify({"status": "no_chat"})
+        
+    # Get the summary using the existing RAG function
+    summary_json = get_session_summary(context, conversations[fingerprint_id], GEMINI_KEY, language)
+    try:
+        summary_data = json.loads(clean_json_response(summary_json))
+    except json.JSONDecodeError:
+        summary_data = {"main_issue": "Summary generation failed."}
+        
+    session_states[fingerprint_id] = "waiting_for_print"
+    
+    # Generate TTS for the question
+    tts_b64 = ""
+    issue = summary_data.get("main_issue", "")
+    next_steps = summary_data.get("recommended_next_steps", "")
+    
+    prompt_text = f"Summary: {issue} Next steps: {next_steps} Would you like a print out of this? Say yes or no."
+    if language == "hi":
+        prompt_text = f"सारांश: {issue} अगला कदम: {next_steps} क्या आपको इसका प्रिंट आउट चाहिए? हाँ या ना कहें।"
+    elif language == "kn":
+        prompt_text = f"ಸಾರಾಂಶ: {issue} ಮುಂದಿನ ಹಂತಗಳು: {next_steps} ನಿಮಗೆ ಇದರ ಪ್ರಿಂಟ್ ಔಟ್ ಬೇಕೇ? ಹೌದು ಅಥವಾ ಇಲ್ಲ ಎಂದು ಹೇಳಿ."
+        
+    if BHASHINI_AVAILABLE:
+        try:
+            out_wav = tempfile.mktemp(suffix=".wav")
+            tts_b64 = bhashini_stt_tts.text_to_speech(prompt_text, language, out_path=out_wav, auto_play=False, is_translated=True)
+            if os.path.exists(out_wav): os.remove(out_wav)
+        except Exception:
+            pass
+
+    socketio.emit('hardware_show_summary', {
+        'summary': summary_data,
+        'tts_audio_url': tts_b64
+    })
+    
+    return jsonify({"status": "summary_sent"})
+
+
+@app.route("/hardware_event", methods=["POST"])
+def hardware_event():
+    """Endpoint for hardware to report real-time events (recording status, language changes)."""
+    data = request.json
+    if not data:
+        return jsonify({"status": "error"}), 400
+        
+    event_type = data.get("event")
+    
+    if event_type == "language_change":
+        socketio.emit("language_changed", {"language": data.get("language")})
+    elif event_type == "recording_started":
+        socketio.emit("recording_status", {"status": "started"})
+    elif event_type == "recording_stopped":
+        socketio.emit("recording_status", {"status": "stopped"})
+        
+    return jsonify({"status": "ok"})
+
+
 @app.route("/hardware_audio_upload", methods=["POST"])
 def hardware_audio_upload():
-    """
-    Endpoint for external hardware (like a physical push button script) to upload a recorded WAV file.
-    It processes it with Bhashini/Gemini and pushes the updates live to the browser UI via WebSocket.
-    """
     print("\n[FLASK] >>> Received audio upload from hardware script!", flush=True)
     if 'audio' not in request.files:
         return jsonify({"status": "error", "message": "No audio file provided"})
 
     audio_file = request.files['audio']
     language = request.form.get("language", "kn")
-
-    # Automatically fetch the user ID that was authenticated by the fingerprint scanner!
     fingerprint_id = getattr(hw_listener, 'current_user_id', 14)
 
     context = build_context(fingerprint_id, "", "")
     if context is None:
         return jsonify({"status": "not_registered"})
 
-    # 1. Save uploaded file temporarily
     tmp_wav = tempfile.mktemp(suffix=".wav")
     audio_file.save(tmp_wav)
 
-    # 2. Transcribe
-    query_text = "What can you help me with today?"
+    query_text = "(Audio unintelligible)"
     if BHASHINI_AVAILABLE:
         try:
-            query_text = bhashini_stt_tts.speech_to_text(tmp_wav, language)
+            recognized_text = bhashini_stt_tts.speech_to_text(tmp_wav, language)
+            if recognized_text and recognized_text.strip():
+                query_text = recognized_text.lower()
         except Exception as e:
             print("Bhashini ASR Error:", e)
+        finally:
+            try:
+                if os.path.exists(tmp_wav): os.remove(tmp_wav)
+            except Exception: pass
 
-    # Tell the UI that a hardware query has started
+    # If we are waiting for a yes/no to print the summary
+    state = session_states.get(fingerprint_id, "chatting")
+    if state == "waiting_for_print":
+        socketio.emit('hardware_interaction_start', {'query': query_text})
+        
+        is_yes = any(word in query_text for word in ["yes", "yeah", "print", "ok", "haan", "ha", "howdu", "sari", "sure"])
+        
+        if is_yes:
+            reply_text = "Successfully printed. Goodbye!"
+            if language == "hi": reply_text = "सफलतापूर्वक प्रिंट हो गया। अलविदा!"
+            elif language == "kn": reply_text = "ಯಶಸ್ವಿಯಾಗಿ ಮುದ್ರಿಸಲಾಗಿದೆ. ವಿದಾಯ!"
+        else:
+            reply_text = "Okay, no print out. Goodbye!"
+            if language == "hi": reply_text = "ठीक है, कोई प्रिंट नहीं। अलविदा!"
+            elif language == "kn": reply_text = "ಸರಿ, ಪ್ರಿಂಟ್ ಇಲ್ಲ. ವಿದಾಯ!"
+            
+        tts_b64 = ""
+        if BHASHINI_AVAILABLE:
+            try:
+                out_wav = tempfile.mktemp(suffix=".wav")
+                tts_b64 = bhashini_stt_tts.text_to_speech(reply_text, language, out_path=out_wav, auto_play=False, is_translated=True)
+                if os.path.exists(out_wav): os.remove(out_wav)
+            except Exception: pass
+            
+        # Send the final response
+        socketio.emit('hardware_interaction_complete', {
+            'answer': reply_text,
+            'tts_audio_url': tts_b64,
+            'is_final': True,
+            'printed': is_yes
+        })
+        
+        # Reset session
+        conversations[fingerprint_id] = []
+        session_states[fingerprint_id] = "chatting"
+        return jsonify({"status": "session_ended"})
+
+    # ---------------- NORMAL CHAT FLOW ----------------
     socketio.emit('hardware_interaction_start', {'query': query_text})
 
-    # 3. Gemini RAG
     raw_answer = get_ai_answer(
         context, GEMINI_KEY,
         language=language,
@@ -272,7 +373,7 @@ def hardware_audio_upload():
 
     # 4. Generate TTS
     tts_b64 = ""
-    if audio_resp and BHASHINI_AVAILABLE and language != "en":
+    if audio_resp and BHASHINI_AVAILABLE:
         try:
             out_wav = tempfile.mktemp(suffix=".wav")
             bhashini_stt_tts.text_to_speech(audio_resp, language, out_path=out_wav, auto_play=False)
@@ -338,9 +439,24 @@ if __name__ == "__main__":
     # so that keyboard hooks work and the user can see the recording status.
     print("\n[STARTUP] Launching external hardware button client in a new window...\n")
     if os.name == 'nt':
-        subprocess.Popen('start "Sahakar Seva Hardware Client" cmd /k "python external_push_button.py"', shell=True)
+        try:
+            subprocess.Popen('start "Sahakar Seva Hardware Client" cmd /k "python external_push_button.py"', shell=True)
+        except Exception as e:
+            print(f"Could not launch hardware button script: {e}")
+
+    import webbrowser
+    import threading
     
+    def open_browser():
+        try:
+            webbrowser.get('windows-default').open("http://127.0.0.1:5000")
+        except:
+            webbrowser.open("http://127.0.0.1:5000")
+            
+    threading.Timer(1.5, open_browser).start()
+
+    print("[*] Starting Flask-SocketIO server on http://127.0.0.1:5000")
     try:
-        socketio.run(app, debug=True, allow_unsafe_werkzeug=True, use_reloader=False)
+        socketio.run(app, debug=True, host='0.0.0.0', port=5000, use_reloader=False)
     finally:
         hw_listener.stop()
